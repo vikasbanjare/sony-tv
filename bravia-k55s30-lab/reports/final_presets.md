@@ -52,10 +52,10 @@ Game mode on that HDMI input, ALLM on the source, HDMI video range matched (P05,
 
 | Setting | Start from | Decided by | Kept value |
 |---|---|---|---|
-| TV position | Match the real stand or wall mount | P29 | |
-| Surround | Off for speech, compare On for films | P24 | |
-| Dialogue enhancer | Low | P25 | |
-| Equaliser | Flat, then a small cut at the first buzzing bass step | P26 | |
+| TV position | Match the real stand or wall mount | P29 | **Wall mount** (TV is on the wall; already set) |
+| Surround | Off for speech, compare On for films | P24 | As found: **Auto**, Surround effect minimum. Try Off if voices feel distant |
+| Dialogue enhancer | Low | P25 | As found: minimum. Try High on a dialogue scene at the same volume |
+| Equaliser | Flat, then a small cut at the first buzzing bass step | P26 | As found: **flat**. Change only if the bass-steps clip buzzes |
 | Auto Volume | On for TV channels, Off for films | P27 | |
 | Dynamic range | On at night | P28 | |
 
