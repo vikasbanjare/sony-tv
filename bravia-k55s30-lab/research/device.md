@@ -4,14 +4,17 @@
 
 | Field | Value | Source |
 |---|---|---|
-| Retail model | K-55S30 | Owner's photo of the rear label |
+| Retail model | K-55S30 | Owner's photo of the rear label (re-checked 2026-10-20) |
+| Market | India: the label carries the BIS mark (IS 616 / IEC 60065) and says "LED TV, 110 V – 240 V". So the "Asia Pacific" firmware on Sony India's page is the right one | Same photo |
 | Series | BRAVIA 3 (S30), model year 2024 | Sony India specifications page |
-| Android "About" model string | BRAVIA BF1 (software platform name, shared with other models) | Owner's screenshot |
-| Android TV OS | 12; security patch 5 Sep 2026; build STT2.230811.001; kernel 5.4.296 | Owner's screenshot |
-| Sony firmware version | **Not yet read.** HOME > Help: the number under the model name | To do in Phase 0 |
+| Android "About" model string | BRAVIA BF1 (software platform name, shared with other models) | Owner's photo of Settings > System > About |
+| Android TV OS | 12; security patch 5 Sep 2026; build STT2.230811.001; kernel 5.4.296, built 31 Aug 2026 | Same photo |
+| Sony firmware version | **Not yet read.** The About page doesn't show it. HOME > Help: the number under the model name | To do in Phase 0 |
 
 The Android build ID is not the Sony firmware version. Only the number on the Help screen can be
 compared with Sony's downloads page (`reports/firmware.md`).
+
+The serial number and Netflix ESN are left out of this lab on purpose; nothing here needs them.
 
 ## Hardware (Sony India specifications page, read 2026-10-20)
 
