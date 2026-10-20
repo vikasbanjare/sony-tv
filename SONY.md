@@ -43,6 +43,21 @@ sh install.sh <TV_IP> "com.google.android.youtube.tv,com.netflix.ninja"
 sh install.sh <TV_IP> "" "bluetooth,sound,picture"
 ```
 
+## The living home screen
+
+This repo's build (`release/tvhome.apk`, installed by `install.sh`) adds, with no animations and no extra memory to speak of:
+
+- **A sky that follows the real sun.** Sunrise glow, daytime blue, sunset colours, stars at night, updated every few minutes.
+- **A greeting** next to the date: "Good evening, Vikas".
+- **Festival days**: Diwali lamps, Holi colours, Independence and Republic Day, Christmas snow, New Year.
+- **It learns your habits.** Come back after a while and the cursor is already on the app you usually open at that time of day.
+
+Set your name, and your city so the sun is right (latitude,longitude; this one is Mumbai):
+
+```sh
+adb shell am start -n com.ansub.tvhome/.MainActivity --es name Vikas --es place 19.07,72.88 --es stamp $(date +%s)
+```
+
 ## Speed it up
 
 [`sony-bravia.txt`](sony-bravia.txt) turns off Sony's promos, demos and other extras, and turns off animations.

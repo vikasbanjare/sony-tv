@@ -29,6 +29,8 @@ import android.net.NetworkRequest;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -49,6 +51,7 @@ import android.widget.TextView;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.TreeMap;
 import java.util.List;
@@ -66,6 +69,8 @@ public class MainActivity extends Activity {
     // it there, off until picked the same way:
     //   --es quick "bluetooth,sound,picture"
     // (--es quick none  takes them away again; "wifi" and "ethernet" are the network tile now).
+    // The greeting can use a name and the sky can follow a place (see Alive), set the same way:
+    //   --es name "Vikas"   --es place "19.07,72.88"   (none takes either away)
     private static final String PREFS = "config";
     private static final List<String> NOT_APPS = Arrays.asList("com.android.vending", "com.android.tv.settings",
             "com.android.tv", "com.google.android.tvlauncher", "com.google.android.apps.tv.launcherx",
@@ -107,6 +112,19 @@ public class MainActivity extends Activity {
     private TextView moveHint;  // shown above the apps while moving
     private boolean longPressed; // OK was held: swallow the key-up so the app doesn't open
 
+    // The sky and greeting follow the time: checked every few minutes while the home screen shows,
+    // and only redrawn when the sun has moved a degree or the day changed.
+    private TextView greeting;
+    private String skyKey;
+    private long awaySince; // when the home screen was last left, to know when to suggest an app
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable tick = new Runnable() {
+        @Override public void run() {
+            refreshAlive();
+            handler.postDelayed(this, 5 * 60 * 1000);
+        }
+    };
+
     private final BroadcastReceiver packagesChanged = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) { dirty = true; }
     };
@@ -130,7 +148,6 @@ public class MainActivity extends Activity {
         saveConfig(getIntent());
         loadFonts();
         scale = getResources().getDisplayMetrics().widthPixels / 1920f;
-        getWindow().setBackgroundDrawable(background());
 
         ScrollView scroller = new ScrollView(this);
         scroller.setFillViewport(true);
@@ -150,7 +167,16 @@ public class MainActivity extends Activity {
         time.setLetterSpacing(-0.028f);
         time.setFontFeatureSettings("tnum");
         time.setIncludeFontPadding(false);
-        clock.addView(date);
+        // "Good evening, Vikas · Tuesday, 20 October" above the time.
+        LinearLayout line = new LinearLayout(this);
+        greeting = text(px(30), 0xE6FFFFFF, semibold);
+        TextView dot = text(px(30), 0x66FFFFFF, regular);
+        dot.setText("  ·  ");
+        line.addView(greeting);
+        line.addView(dot);
+        line.addView(date);
+        clock.addView(line);
+        refreshAlive();
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-2, -2);
         tp.topMargin = px(-20); // pull the big digits up under the date
         clock.addView(time, tp);
@@ -200,7 +226,9 @@ public class MainActivity extends Activity {
     private boolean saveConfig(Intent intent) {
         String apps = intent == null ? null : intent.getStringExtra("apps");
         String quick = intent == null ? null : intent.getStringExtra("quick");
-        if (apps == null && quick == null) return false;
+        String name = intent == null ? null : intent.getStringExtra("name");
+        String place = intent == null ? null : intent.getStringExtra("place");
+        if (apps == null && quick == null && name == null && place == null) return false;
         SharedPreferences prefs = getSharedPreferences(PREFS, 0);
         String stamp = intent.getStringExtra("stamp");
         if (stamp != null && stamp.equals(prefs.getString("stamp", null))) return false;
@@ -216,7 +244,14 @@ public class MainActivity extends Activity {
             if (quick.isEmpty() || quick.equalsIgnoreCase("none")) e.remove("quick");
             else e.putString("quick", quick);
         }
+        for (String[] kv : new String[][] {{"name", name}, {"place", place}}) {
+            if (kv[1] == null) continue;
+            String v = kv[1].trim();
+            if (v.isEmpty() || v.equalsIgnoreCase("none")) e.remove(kv[0]);
+            else e.putString(kv[0], v);
+        }
         e.apply();
+        skyKey = null;
         dirty = true;
         return true;
     }
@@ -251,8 +286,37 @@ public class MainActivity extends Activity {
             buildTiles();
         }
         refreshNetwork();
+        handler.removeCallbacks(tick);
+        tick.run();
+        // Back after a while: start on the app usually opened at this time of day, if there is one.
+        // A quick trip away keeps focus where it was.
         View f = getCurrentFocus();
-        if (f == null && !tiles.isEmpty()) tiles.get(0).requestFocus();
+        String usual = movingKey == null && System.currentTimeMillis() - awaySince > 15 * 60 * 1000
+                ? Alive.usual(this, rowApps) : null;
+        View u = usual == null ? null : tile(usual);
+        if (u != null) u.requestFocus();
+        else if (f == null && !tiles.isEmpty()) tiles.get(0).requestFocus();
+    }
+
+    @Override
+    protected void onPause() {
+        handler.removeCallbacks(tick);
+        awaySince = System.currentTimeMillis();
+        super.onPause();
+    }
+
+    private void refreshAlive() {
+        Calendar now = Calendar.getInstance();
+        SharedPreferences prefs = getSharedPreferences(PREFS, 0);
+        String festival = Alive.festival(now);
+        greeting.setText(Alive.greeting(now, festival, prefs.getString("name", null)));
+        double[] at = Alive.place(prefs);
+        double sun = Alive.sunElevation(now.getTimeInMillis(), at[0], at[1]);
+        boolean morning = now.get(Calendar.HOUR_OF_DAY) < 12;
+        String key = Math.round(sun) + "|" + morning + "|" + festival;
+        if (key.equals(skyKey)) return;
+        skyKey = key;
+        getWindow().setBackgroundDrawable(Alive.sky(sun, morning, festival, px(1250)));
     }
 
     // The TV's language changed: start over so the labels and the date follow it.
@@ -264,25 +328,6 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() { /* home screen: nothing to go back to */ }
-
-    // Static warm gradient, drawn once by the window: no extra view, no animation.
-    private Drawable background() {
-        GradientDrawable base = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[] {0xFF15100F, 0xFF0A0809, 0xFF050405});
-        GradientDrawable warm = radial(0x36FF8048, 0.08f, -0.12f, px(1250));
-        GradientDrawable plum = radial(0x2EAA3C8C, 1.0f, 1.1f, px(1000));
-        for (GradientDrawable g : new GradientDrawable[] {base, warm, plum}) g.setDither(true);
-        return new LayerDrawable(new Drawable[] {base, warm, plum});
-    }
-
-    private static GradientDrawable radial(int color, float cx, float cy, float r) {
-        GradientDrawable g = new GradientDrawable();
-        g.setGradientType(GradientDrawable.RADIAL_GRADIENT);
-        g.setColors(new int[] {color, color & 0x00FFFFFF});
-        g.setGradientCenter(cx, cy);
-        g.setGradientRadius(r);
-        return g;
-    }
 
     private void buildTiles() {
         // While tiles are swapped out, removing the focused one would hand focus down the row (and
@@ -507,6 +552,7 @@ public class MainActivity extends Activity {
         } else {
             i = launchIntent(getPackageManager(), key);
             if (i == null) return;
+            Alive.opened(this, key);
         }
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         try { startActivity(i); } catch (Exception ignored) {}

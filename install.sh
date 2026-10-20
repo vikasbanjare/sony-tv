@@ -5,7 +5,8 @@
 #   sh install.sh <TV_IP> "com.netflix.ninja,com.google.android.youtube.tv"
 #   sh install.sh <TV_IP> "" "bluetooth,sound,picture"   adds settings shortcuts by the clock
 #
-# Uses out/tvhome.apk if you built it, otherwise downloads the latest release.
+# Uses out/tvhome.apk if you built it, then release/tvhome.apk (this repo's build with the living
+# sky), otherwise downloads the latest upstream release.
 set -e
 cd "$(dirname "$0")"
 
@@ -33,6 +34,7 @@ case "$state" in
 esac
 
 APK=out/tvhome.apk
+[ -f "$APK" ] || APK=release/tvhome.apk
 if [ ! -f "$APK" ]; then
   APK=$(mktemp -d)/tvhome.apk
   echo "Downloading the home screen…"
