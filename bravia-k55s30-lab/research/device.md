@@ -33,6 +33,17 @@ compared with Sony's downloads page (`reports/firmware.md`).
 | PS5 features | Auto HDR Tone Mapping, Auto Genre Picture Mode | — |
 | Platform | Google TV on Android TV | — |
 
+## Seen on this TV (owner's `pm list packages -e`, 2026-10-20)
+
+| Package | What it tells us |
+|---|---|
+| `com.mediatek.*` (tv.agent, system.pqrepository.overlay.config, wwtv.mediaplayer, …) | MediaTek TV chip platform. Picture-quality tables live in Sony/MediaTek system packages, not in user-reachable settings |
+| `com.sony.dtv.ipcontrol`, `com.sony.dtv.ipcontrolaux` | Sony's IP control service is installed, so `scripts/bravia-rest-probe.sh` is worth running |
+| `com.dolby.android.audio.service` | Dolby audio processing service (Dolby Audio / Atmos decoding) |
+| `com.sony.dtv.ecodashboard` | Eco Dashboard (Power saving, light sensor) |
+| `com.sony.dtv.sonyservicemode` | Sony's service menu app. **Never open or change it** (see `../reports/unavailable_features.md`) |
+| `com.sony.dtv.smarthelp`, `com.sony.dtv.helpguidecontents` | Help screen and manual. Turned off by `sony-bravia.txt`; Help is where the firmware number is shown |
+
 Not published by Sony and not measured here: peak brightness (nits), native contrast, panel type (VA or IPS).
 This lab does not guess them.
 

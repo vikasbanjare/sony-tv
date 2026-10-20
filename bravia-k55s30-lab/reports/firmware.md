@@ -18,6 +18,15 @@ Sony has now added it, so the condition is met for an Asia Pacific (India) TV.
 ## What to do
 
 1. HOME > **Help**. Note the number under the model name in `baselines/baseline.md`.
+   If you applied `sony-bravia.txt`, Help is turned off (`com.sony.dtv.smarthelp`). Turn it on just to look,
+   then off again:
+   ```sh
+   adb shell pm enable com.sony.dtv.smarthelp
+   # read the number on HOME > Help, then:
+   sh check.sh <TV_IP> --fix sony-bravia.txt     # from the repo root; turns it off again
+   ```
+   The ADB diagnostics also save `ro.build.version.incremental` and the build fingerprint; on some Sony TVs the
+   firmware number appears there, but only the Help screen is Sony's documented place.
 2. If it is **6120900201 or higher**: nothing to do.
 3. If lower: Settings > System > About > **System software update** and let the TV update itself.
    Keep it plugged in and don't turn it off until it restarts on its own.
