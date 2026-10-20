@@ -1,12 +1,13 @@
 #!/bin/sh
 # Reads facts from the TV over ADB and saves them to baselines/. Changes nothing on the TV.
 #
-#   sh scripts/adb-diagnostics.sh <TV_IP>:<PORT>          read and save
-#   sh scripts/adb-diagnostics.sh <TV_IP>:<PORT> --names  also list Sony property NAMES (no values)
+#   sh scripts/adb-diagnostics.sh <TV_IP>                 read and save, over Wi-Fi like install.sh
+#   sh scripts/adb-diagnostics.sh <TV_IP> --names         also list Sony property NAMES (no values)
+#   sh scripts/adb-diagnostics.sh <TV_IP>:<PORT>          a different port (e.g. Wireless debugging)
 #
-# Use the port the TV shows (Settings > System > Developer options > Wireless debugging,
-# or the port you set up yourself). This script never guesses 5555. Pair first, once:
-#   adb pair <TV_IP>:<PAIRING_PORT>      (enter the code the TV shows)
+# Same connection as the rest of this repo: USB debugging on, TV and Mac on the same Wi-Fi,
+# port 5555 unless you give one. The first time, the TV asks "Allow debugging?": tick
+# "Always allow", press Allow, and run the command again.
 #
 # Only the commands in this file run, all of them reads (getprop, dumpsys, settings get,
 # wm size, pm list). It skips serial numbers, MAC addresses, Android ID, accounts and logs.
@@ -15,16 +16,16 @@ set -e
 TV="$1"; NAMES=
 [ "$2" = --names ] && NAMES=1
 case "$TV" in
-  *:*) ;;
-  *) echo "Usage: sh scripts/adb-diagnostics.sh <TV_IP>:<PORT> [--names]" >&2
-     echo "Give the port the TV shows. This script never assumes 5555." >&2; exit 1 ;;
+  *.*.*.*:*) ;;
+  *.*.*.*)   TV=$TV:5555 ;;
+  *) echo "Usage: sh scripts/adb-diagnostics.sh <TV_IP>[:PORT] [--names]" >&2; exit 1 ;;
 esac
 command -v adb >/dev/null || { echo "adb is missing. On the Mac: brew install android-platform-tools" >&2; exit 1; }
 cd "$(dirname "$0")/.."
 
 adb connect "$TV" >/dev/null || true
 [ "$(adb -s "$TV" get-state 2>/dev/null)" = device ] || {
-  echo "Can't reach $TV. Check Wireless debugging is on, the port is right and you ran adb pair." >&2; exit 2; }
+  echo "Can't reach $TV. Check USB debugging is on, the IP is right, and press Allow on the TV, then run this again." >&2; exit 2; }
 
 mkdir -p baselines
 OUT="baselines/adb-$(date +%Y%m%d-%H%M).txt"

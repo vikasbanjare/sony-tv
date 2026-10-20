@@ -8,7 +8,7 @@ How to put everything back. The baseline (`baselines/baseline.md` and its photos
 | All picture settings of a mode | Settings > Display & Sound > Picture > Advanced settings > **Reset**. It resets the picture mode you're in; check other inputs separately |
 | Sound settings | Settings > Display & Sound > Audio > **Reset** |
 | Light sensor, Power saving | Set back to the baseline values |
-| Wireless debugging | Developer options > Wireless debugging > Off (and "Forget" the Mac in paired devices if you want) |
+| ADB access | Developer options > USB debugging (or Wireless debugging) > Off. Turn it back on when you next run `check.sh` or `install.sh` |
 | IP control (if turned on for the REST probe) | Settings > Network & Internet > IP control > Off |
 | Mac playback | Stop using `--config-dir=config/mpv`; nothing on the Mac is changed outside this folder |
 | Mac display output | System Settings > Displays > back to the previous resolution, refresh rate and HDR toggle |

@@ -48,14 +48,14 @@ brew install git android-platform-tools ffmpeg mpv     # only what it says is mi
 **2. Projects (optional, to read).** `sh scripts/clone-repos.sh`, then [`reports/compatibility.md`](reports/compatibility.md)
 says what each one is and whether it applies. Don't run their code against the TV.
 
-**3. Read the TV (optional).** Developer options > **Wireless debugging** on > **Pair device with pairing code**. Use the
-addresses the TV shows, not 5555:
+**3. Read the TV (optional).** Over Wi-Fi, the same way as `install.sh` and `check.sh` in this repo: USB debugging on
+(see [`SONY.md`](../SONY.md)), Mac and TV on the same Wi-Fi, TV's IP from Settings > Network & Internet.
 ```sh
-adb pair <TV_IP>:<PAIRING_PORT>                   # type the code from the TV
-sh scripts/adb-diagnostics.sh <TV_IP>:<DEBUG_PORT>
+sh scripts/adb-diagnostics.sh <TV_IP>             # first time: press Allow on the TV, then run it again
 sh scripts/bravia-rest-probe.sh <TV_IP>           # turn on Settings > Network & Internet > IP control first
 ```
-Turn Wireless debugging off again when you're done.
+It uses port 5555 like the rest of the repo. If you use Developer options > Wireless debugging instead, pair once with
+`adb pair <TV_IP>:<PAIRING_PORT>` and pass the port it shows: `sh scripts/adb-diagnostics.sh <TV_IP>:<PORT>`.
 
 **4. Baseline.** Fill in [`baselines/baseline.md`](baselines/baseline.md) and photograph every menu page.
 Make the clips (`sh scripts/make-patterns.sh`), copy `tests/patterns/` to a USB stick and score them as they are.

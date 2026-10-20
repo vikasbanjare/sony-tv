@@ -22,7 +22,7 @@ BRAVIA 3 or the BF1 platform; for every project the answer is **none**.
 |---|---|---|
 | Professional REST API (`/sony/video` getPictureQualitySettings etc.) | Documented for BRAVIA Professional Displays only. Needs a Pre-Shared Key for most methods | **Unknown on K-55S30.** The Help Guide has no PSK setting, and one unverified report says BRAVIA 3 dropped it. Run `scripts/bravia-rest-probe.sh` |
 | Simple IP control | Named in the K-55S30 Help Guide (Settings > Network & Internet > IP control) | Present. Its command set was not reviewed here; no picture-quality commands are assumed |
-| ADB | Developer options > Wireless debugging (Android 11+) | Works on Android TV 12 in general. Gives device facts (`scripts/adb-diagnostics.sh`), not panel brightness, zone count or panel type |
+| ADB | Over Wi-Fi on port 5555 with USB debugging on, as `install.sh` uses; or Developer options > Wireless debugging (Android 11+) | Works on Android TV 12 in general. Gives device facts (`scripts/adb-diagnostics.sh`), not panel brightness, zone count or panel type |
 
 ## Decision
 

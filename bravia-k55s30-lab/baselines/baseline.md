@@ -40,7 +40,7 @@ Date: ____  Sony firmware (HOME > Help): ____  Room: day / evening / dark
 |---|---|
 | Power saving / Eco | |
 | HDMI signal format (Settings > Channels & Inputs > External inputs) per port | |
-| Wireless debugging | |
+| USB / Wireless debugging | |
 | IP control | |
 
 ## Sound
