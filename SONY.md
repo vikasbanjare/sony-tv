@@ -43,6 +43,19 @@ sh install.sh <TV_IP> "com.google.android.youtube.tv,com.netflix.ninja"
 sh install.sh <TV_IP> "" "bluetooth,sound,picture"
 ```
 
+## Speed it up
+
+[`sony-bravia.txt`](sony-bravia.txt) turns off Sony's promos, demos and other extras, and turns off animations.
+Read it first and delete any line for an app you use, then:
+
+```sh
+sh check.sh <TV_IP> --fix sony-bravia.txt
+```
+
+Run the same command again whenever a Sony update turns something back on.
+
+If holding a remote button only moves one step, check **Settings → Accessibility → Switch Access** is off.
+
 ## Keep it working / undo
 
 ```sh

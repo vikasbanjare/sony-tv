@@ -1,0 +1,28 @@
+# Speed-up changes for the Sony BRAVIA. Apply or re-apply after an update with:
+#   sh check.sh <TV_IP> --fix sony-bravia.txt
+# Delete a line (or put # in front) to keep that app on. Turn one back on with:
+#   adb shell pm enable <package>
+
+# Sony promotions, app adverts, store demo and help guide
+off com.sony.dtv.promos
+off com.sony.dtv.sonyselect
+off com.sony.dtv.demosupport
+off com.sony.dtv.demosystemsupport
+off com.sony.dtv.multiscreendemo
+off com.sony.dtv.helpguidecontents
+off com.sony.dtv.smarthelp
+
+# Samba TV: watches what's on screen to target ads
+off tv.samba.ssm
+
+# Google extras
+off com.google.android.feedback
+off com.google.android.play.games
+
+# Google TV's screensaver uses about 200 MB. Leave it on if your TV is OLED (it helps prevent burn-in).
+# off com.google.android.apps.tv.dreamx
+
+# No animations: menus react to the remote straight away
+global window_animation_scale 0
+global transition_animation_scale 0
+global animator_duration_scale 0
