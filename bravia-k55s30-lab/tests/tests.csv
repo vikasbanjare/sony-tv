@@ -1,0 +1,35 @@
+test_id,source,resolution,HDR_format,room_lighting,original_setting,changed_setting,instrument_or_subjective,dark_detail_1_5,bright_highlights_1_5,color_1_5,artifacts_1_5,result,rollback
+P01,sdr-gray-steps + film scene,2160p,SDR,evening,Picture mode: (as found),Picture mode: Cinema,subjective,,,,,planned,Picture mode back to the value in baselines/baseline.md
+P02,sdr-gray-steps + skin-tone scene,2160p,SDR,evening,Picture mode: Cinema,Picture mode: Professional,subjective,,,,,planned,Picture mode: Cinema
+P03,all picture tests,-,-,any,Light sensor: (as found),Light sensor: Off (for testing only),subjective,,,,,planned,Light sensor back to the value in baselines/baseline.md
+P04,bright daylight scene,2160p,SDR,day,Power saving / Eco: (as found),Power saving: Off,subjective,,,,,planned,Power saving back to the value in baselines/baseline.md
+P05,sdr-black-clipping via Mac HDMI,2160p,SDR,dark,HDMI video range: (as found),HDMI video range: Auto / Limited / Full (match the Mac),subjective,,,,,planned,HDMI video range: Auto
+P06,sdr-black-clipping,2160p,SDR,dark,Black level: default,Black level: one step at a time until bar 16 = background and bar 17 just visible,subjective,,,,,planned,Black level: default
+P07,sdr-gray-ramp + sdr-gray-steps,2160p,SDR,evening,Gamma: 0,Gamma: -1 then +1,subjective,,,,,planned,Gamma: 0
+P08,sdr-black-clipping + dark film scene,2160p,SDR,dark,Black adjust: (as found),Black adjust: Off then Low,subjective,,,,,planned,Black adjust back to the value in baselines/baseline.md
+P09,dark film scene + bright scene,2160p,SDR,evening,Adv. contrast enhancer: (as found),Adv. contrast enhancer: Off then Low,subjective,,,,,planned,Adv. contrast enhancer back to the value in baselines/baseline.md
+P10,daylight scene,2160p,SDR,day + evening,Brightness: (as found),Brightness: highest comfortable (day) / lower (evening),subjective,,,,,planned,Brightness back to the value in baselines/baseline.md
+P11,sdr-gray-steps,2160p,SDR,evening,Colour temperature: (as found),Colour temperature: Expert 1 vs Neutral,subjective,,,,,planned,Colour temperature back to the value in baselines/baseline.md
+P12,skin-tone scene,2160p,SDR,evening,Live Colour: (as found),Live Colour: Off vs Low,subjective,,,,,planned,Live Colour back to the value in baselines/baseline.md
+P13,1080p YouTube/broadcast,1080p,SDR,evening,Reality Creation: (as found),Reality Creation: Off / Auto / Manual low,subjective,,,,,planned,Reality Creation back to the value in baselines/baseline.md
+P14,low-bitrate broadcast,1080p,SDR,evening,Random + Digital noise reduction: (as found),Off vs Low,subjective,,,,,planned,Noise reduction back to the value in baselines/baseline.md
+P15,sdr-white-clipping + text,2160p,SDR,evening,Sharpness: default,Sharpness: lower until no white halos,subjective,,,,,planned,Sharpness: default
+P16,sdr-motion-pan-24p + sport,2160p,SDR,evening,Motionflow: (as found),Motionflow: Off / Standard / Custom (Smoothness 1),subjective,,,,,planned,Motionflow back to the value in baselines/baseline.md
+P17,sdr-motion-pan-24p,2160p,SDR,evening,Film mode: (as found),Film mode: Auto vs Off,subjective,,,,,planned,Film mode back to the value in baselines/baseline.md
+P18,hdr10-pq-steps,2160p,HDR10,dark,Peak luminance: (as found; if the menu has it),Peak luminance: Medium vs High,subjective,,,,,planned,Peak luminance back to the value in baselines/baseline.md
+P19,sdr-black-clipping + hdr10-pq-steps,2160p,SDR + HDR10,dark,Auto local dimming / Dynamic backlight: (as found; if the menu has it),Off / Low / Medium,subjective,,,,,planned,Back to the value in baselines/baseline.md
+P20,hdr10-pq-steps,2160p,HDR10,dark,HDR mode: (as found),HDR mode: Auto (never force HDR on SDR),subjective,,,,,planned,HDR mode: Auto
+P21,Dolby Vision title (Netflix/Prime),2160p,DV,day + evening,DV picture mode: (as found),Dolby Vision Bright (day) vs Dark (evening),subjective,,,,,planned,DV picture mode back to the value in baselines/baseline.md
+P22,hdr10-pq-steps,2160p,HDR10,dark,HDR picture mode: (as found),Cinema vs Professional: count visible dark steps and highlight steps,subjective,,,,,planned,HDR picture mode back to the value in baselines/baseline.md
+P23,Mac or console,2160p,SDR + HDR10,evening,Picture mode on that input: (as found),Game (and ALLM on the source),subjective,,,,,planned,Picture mode back to the value in baselines/baseline.md
+P24,dialogue scene,-,-,evening,Surround: (as found),Surround: Off vs On,subjective (level-matched),,,,,planned,Surround back to the value in baselines/baseline.md
+P25,dialogue scene,-,-,evening,Dialogue enhancer: (as found),Off / Low / High,subjective (level-matched),,,,,planned,Dialogue enhancer back to the value in baselines/baseline.md
+P26,audio-bass-steps + music,-,-,evening,Equaliser: flat,Equaliser: small bass cut where it buzzes; small lift around 2.5 kHz,subjective (level-matched),,,,,planned,Equaliser: Reset
+P27,TV channel / YouTube with ads,-,-,evening,Auto Volume: (as found),Auto Volume: Off vs On,subjective,,,,,planned,Auto Volume back to the value in baselines/baseline.md
+P28,action film at night,-,-,dark,Dynamic range: (as found),Dynamic range: On vs Off,subjective,,,,,planned,Dynamic range back to the value in baselines/baseline.md
+P29,audio-pink-noise + dialogue,-,-,evening,TV position: (as found),TV position matching the real stand or wall mount,subjective,,,,,planned,TV position back to the value in baselines/baseline.md
+P30,Atmos/5.1 title,-,-,evening,Speakers: TV speakers,eARC soundbar/AVR (only if you own one),subjective,,,,,planned,Speakers: TV speakers
+P31,1080p file via Mac,1080p,SDR,evening,Mac outputs 4K (mpv scales),Mac outputs 1080p (TV's Reality Creation scales),subjective,,,,,planned,Mac display back to 4K
+P32,low-bitrate file via Mac,1080p,SDR,evening,mpv deband off,mpv deband on (F3),subjective,,,,,planned,Press F3 again
+P33,hdr10-pq-steps via Mac,2160p,HDR10,dark,mpv k55-sdr-tv (tone-mapped),mpv k55-hdr-passthrough-experimental,subjective + TV signal info,,,,,planned,Use profile k55-sdr-tv
+P34,dialogue file via Mac,-,-,evening,mpv filters off,mpv dialogue lift (F1) / night (F2),subjective (level-matched),,,,,planned,Press F1/F2 again
