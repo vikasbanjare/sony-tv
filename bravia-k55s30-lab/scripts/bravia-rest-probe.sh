@@ -44,3 +44,7 @@ call() { # service, method, version, params
 cat "$OUT"
 echo
 echo "Saved $OUT. \"Forbidden\" or \"Unauthorized\" means a key is needed. Any other error means that method isn't available."
+if grep -q "Couldn't connect" "$OUT"; then
+  echo "Nothing is listening on port 80: turn on Settings > Network & Internet > IP control (or Remote device"
+  echo "settings > Control remotely) and run this again. If it still can't connect, this TV has no REST API."
+fi

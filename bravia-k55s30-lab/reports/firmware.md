@@ -10,7 +10,7 @@ original plan, which said the page listed v6120800301 and that 6120900201 was fo
 | Earlier version named in the plan | 6120800301 (8 Apr 2026). No longer on the page |
 | What it fixes (Sony's words) | "Improves performance and stability of overall UI operation", "Improves general TV performance". Earlier fixes: IPTV audio mute, Zoom app, IPTV stability, AirPlay features |
 | Picture or sound changes listed | None |
-| Installed version on this TV | **Not read yet** (HOME > Help) |
+| Installed version on this TV | **Very likely 6120900201 (the latest).** ADB on 2026-10-20: `ro.build.version.incremental = 612090020`, which is 6120900201 without its last digit. Confirm on HOME > Help |
 
 The plan's rule was: don't use 6120900201 "unless Sony explicitly adds this model to its supported list".
 Sony has now added it, so the condition is met for an Asia Pacific (India) TV.

@@ -42,7 +42,8 @@ section() { printf '\n## %s\n' "$1"; }
            ro.build.version.release ro.build.version.sdk ro.build.version.security_patch ro.build.fingerprint; do
     echo "$p = $(sh_tv getprop "$p")"
   done
-  echo "Note: none of these is the Sony firmware version (e.g. 6120900201). Read it on the TV: HOME > Help."
+  echo "Note: on BRAVIA BF1 TVs ro.build.version.incremental looks like the Sony firmware version without"
+  echo "its last digit (612090020 for 6120900201). Sony's documented place to read it is HOME > Help."
 
   section "Screen"
   sh_tv wm size

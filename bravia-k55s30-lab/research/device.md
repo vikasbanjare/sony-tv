@@ -9,7 +9,7 @@
 | Series | BRAVIA 3 (S30), model year 2024 | Sony India specifications page |
 | Android "About" model string | BRAVIA BF1 (software platform name, shared with other models) | Owner's photo of Settings > System > About |
 | Android TV OS | 12; security patch 5 Sep 2026; build STT2.230811.001; kernel 5.4.296, built 31 Aug 2026 | Same photo |
-| Sony firmware version | **Not yet read.** The About page doesn't show it. HOME > Help: the number under the model name | To do in Phase 0 |
+| Sony firmware version | Very likely **6120900201** (latest): ADB shows build incremental `612090020`. Confirm on HOME > Help | `adb-diagnostics.sh`, 2026-10-20 |
 
 The Android build ID is not the Sony firmware version. Only the number on the Help screen can be
 compared with Sony's downloads page (`reports/firmware.md`).
@@ -35,6 +35,21 @@ The serial number and Netflix ESN are left out of this lab on purpose; nothing h
 | CalMAN auto calibration | "-" | No CalMAN auto-cal |
 | PS5 features | Auto HDR Tone Mapping, Auto Genre Picture Mode | — |
 | Platform | Google TV on Android TV | — |
+
+## Read from this TV over ADB (2026-10-20)
+
+| Item | Value | What it means |
+|---|---|---|
+| Product name / platform | `BRAVIA_BF1_4K_M_A`, board `merak` (MediaTek) | — |
+| HDR types Android reports | 1, 2, 3 = **Dolby Vision, HDR10, HLG**. No HDR10+ | Matches Sony's spec |
+| Android's max luminance figure | 100 (avg 50, min 0.05) | A placeholder Android passes to apps, **not** the panel's real brightness. Don't read nits from it |
+| Display mode Android sees | 3840 × 2160 at 60 Hz, one mode only | Apps can't ask Android for 50 Hz or 24 Hz; Sony's video path decides that. Motion tests (P16, P17) are where this shows up |
+| Menu resolution | Physical 3840 × 2160, menus drawn at 1920 × 1080 | Normal for Android TV and set by the TV itself, not by this repo. Video still plays in 4K. Leave it |
+| Audio devices | TV speakers only; no HDMI audio system connected | `encoded_surround_output` is unset (Auto) |
+| ARC / eARC port | **HDMI 3** is the only port with ARC | Plug a soundbar or AV receiver into HDMI 3 |
+| Thermal status | 0 (normal) | — |
+| `animator_duration_scale` | 0.6, although `sony-bravia.txt` sets 0 | Something on the TV puts it back. It only affects menu animations; `check.sh --fix` sets it again |
+| REST API (port 80) | **Connection refused** with no key | IP control was probably off at the time; see `../reports/compatibility.md` |
 
 ## Seen on this TV (owner's `pm list packages -e`, 2026-10-20)
 
