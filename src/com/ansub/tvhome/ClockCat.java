@@ -44,9 +44,30 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
             LOUNGE = 9, DRAPE = 10;
     // Her coat, from the photo: a warm grey-tan tabby with dark stripes, apricot patches, a white
     // chest, chin and paws, green eyes, a pink nose and a dark ringed tail.
-    private static final int FUR = 0xFF8F7F6C, FUR_LIGHT = 0xFFBAAA95, FUR_SHADE = 0xFF5A4D42, STRIPE = 0xFF342C26,
-            ORANGE = 0xFFC9905B, PEACH = 0xFFE2B383, WHITE = 0xFFF3EEE5, EYE = 0xFF9FB24F, EYE_LIGHT = 0xFFDDE09A,
-            PUPIL = 0xFF15130F, NOSE = 0xFFD48D8A, EAR = 0xFFD9A3A0, OUTLINE = 0xCC2E2722;
+    private static final int PUPIL = 0xFF15130F, OUTLINE = 0xCC2E2722;
+    private int FUR, FUR_LIGHT, FUR_SHADE, STRIPE, ORANGE, PEACH, WHITE, EYE, EYE_LIGHT, NOSE, EAR;
+    private boolean bands, patches, bib, socks;
+    private Coat coat;
+
+    void setCoat(Coat c) {
+        synchronized (lock) {
+            coat = c;
+            FUR = c.fur; FUR_LIGHT = c.furLight; FUR_SHADE = c.furShade; STRIPE = c.stripe;
+            ORANGE = c.patch; PEACH = c.patchLight; WHITE = c.white; EYE = c.eye; EYE_LIGHT = c.eyeLight;
+            NOSE = c.nose; EAR = c.ear;
+            bands = c.bands; patches = c.patches; bib = c.bib; socks = c.socks;
+        }
+    }
+
+    // No clock: she lives along the bottom of this view instead (the overlay app).
+    private boolean free;
+
+    void setFree(float catSize) {
+        synchronized (lock) {
+            free = true;
+            setTextSize(catSize / 0.46f);
+        }
+    }
 
     private final Object lock = new Object();
     private final Random rnd = new Random();
@@ -134,6 +155,7 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         nextMove = t + 5000;
         blinkAt = t + 2000;
         slot = new Slot(c);
+        setCoat(Coat.DEFAULT);
         setTextSize(200);
     }
 
@@ -271,6 +293,18 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
     // ---- The digits ------------------------------------------------------------------------------
 
     private void digits(long t) {
+        if (free) {
+            if (now == null || xs.length != 2 || xs[1] != getWidth() - catH * 0.3f) {
+                now = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
+                shown = "0";
+                xs = new float[] {catH * 0.3f, getWidth() - catH * 0.3f};
+                capTop = getHeight() - catH * 0.06f;
+                roof = new float[0];
+                colonX = -1;
+                if (x > xs[1]) x = -1;
+            }
+            return;
+        }
         if (t - lastCheck > 500 || now == null) {
             lastCheck = t;
             String s = time();
@@ -355,6 +389,7 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
 
     // The highest point under her stance at x (clock pixels), or the cap height off the digits.
     private float roofFloor(float x) {
+        if (roof.length == 0) return capTop;
         int a = Math.max(0, Math.round(x - catH * 0.22f)), b = Math.min(roof.length - 1, Math.round(x + catH * 0.22f));
         float m = NONE;
         for (int i = a; i <= b; i++) if (roof[i] < m) m = roof[i];
@@ -380,6 +415,7 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
 
     // The highest column near x: the crown of a curve.
     private float crownX(float x) {
+        if (roof.length == 0) return x;
         int a = Math.max(0, Math.round(x - catH * 0.3f)), b = Math.min(roof.length - 1, Math.round(x + catH * 0.3f));
         int best = Math.round(x);
         for (int i = a; i <= b; i++) if (i >= 0 && i < roof.length && roof[i] < roof[Math.max(0, Math.min(roof.length - 1, best))]) best = i;
@@ -388,6 +424,7 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
 
     // How much of the digit is under her paws: small on the point of a 1, wide on the bar of a 7.
     private float roofSupport(float x) {
+        if (roof.length == 0) return catH;
         float f = roofFloor(x);
         int a = Math.max(0, Math.round(x - catH * 0.22f)), b = Math.min(roof.length - 1, Math.round(x + catH * 0.22f));
         int n = 0;
@@ -519,8 +556,10 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         digits(t);
         if (now == null) return;
         c.translate(ox, oy);
-        drawDigits(c, t);
-        drawColon(c, t, dt);
+        if (!free) {
+            drawDigits(c, t);
+            drawColon(c, t, dt);
+        }
         think(t, dt);
         drawCat(c, t);
     }
@@ -660,11 +699,14 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
             return;
         }
         r = rnd.nextFloat();
-        if (r < 0.38f) { // to another digit
-            int i;
-            do i = rnd.nextInt(shown.length()); while (shown.charAt(i) == ':');
-            float spot = rnd.nextFloat() < 0.5f ? 0 : (rnd.nextFloat() - 0.5f) * (xs[i + 1] - xs[i]) * 0.75f;
-            target = Math.max(left(), Math.min(right(), digitCenter(i) + spot));
+        if (r < 0.38f) { // to another digit (or, with no clock, somewhere else along the edge)
+            if (free) target = left() + rnd.nextFloat() * (right() - left());
+            else {
+                int i;
+                do i = rnd.nextInt(shown.length()); while (shown.charAt(i) == ':');
+                float spot = rnd.nextFloat() < 0.5f ? 0 : (rnd.nextFloat() - 0.5f) * (xs[i + 1] - xs[i]) * 0.75f;
+                target = Math.max(left(), Math.min(right(), digitCenter(i) + spot));
+            }
             if (Math.abs(target - x) > catH * 0.2f) { swipes = 0; speed = 0; set(WALK, t); }
         } else if (r < 0.6f && colonX > 0) { // go and bat the colon
             float side = x < colonX ? -1 : 1;
@@ -747,6 +789,8 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
 
     // A soft-edged patch of colour: an apricot blotch, the white bib, a highlight.
     private void patch(Canvas c, int color, float cx, float cy, float rx, float ry, float edge) {
+        if ((color == ORANGE || color == PEACH) && !patches) return;
+        if (color == WHITE && !bib) return;
         c.save();
         c.translate(cx, cy);
         c.scale(rx, ry);
@@ -758,6 +802,7 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
 
     // A tabby band: a wide faint stroke under a narrow darker one, so it fades out at the sides.
     private void band(Canvas c, float x0, float y0, float cx, float cy, float x1, float y1, float w, float alpha) {
+        if (!bands) return;
         Path keep = path;
         path = band;
         path.reset();
@@ -821,7 +866,7 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
             float k = i / 3.4f, lx = ax + dx * k, ly = ay + dy * k;
             band(c, lx - nx * w0, ly - ny * w0, lx, ly + 0.008f, lx + nx * w0, ly + ny * w0, 0.016f, near ? 0.28f : 0.2f);
         }
-        patch(c, near ? WHITE : 0xFFDCD5CA, px, py, w1 * 1.6f, w1 * 2.2f, 0.45f); // the white sock
+        if (socks) patch(c, near ? WHITE : Alive.mix(WHITE, FUR_SHADE, 0.15f), px, py, w1 * 1.6f, w1 * 2.2f, 0.45f); // the white sock
         c.restore();
         line.setColor(OUTLINE);
         line.setStrokeWidth(0.011f);
@@ -878,6 +923,7 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
             band(c, sd * 0.19f + fx, 0.01f, sd * 0.26f + fx, 0.0f, sd * 0.32f + fx, 0.0f, 0.013f, 0.4f);
         }
         patch(c, WHITE, fx, 0.115f, 0.165f, 0.125f, 0.5f);           // white muzzle and chin
+        if (coat.pattern == Coat.TUXEDO) patch(c, WHITE, fx, 0.1f, 0.2f, 0.17f, 0.55f);
         shade(c, -0.2f, 0.25f);
         c.restore();
         line.setColor(OUTLINE);
@@ -1024,6 +1070,7 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         }
         band(c, -0.2f, -0.62f, -0.08f, -0.6f, 0.02f, -0.66f, 0.025f, 0.4f);
         patch(c, WHITE, -0.16f, -0.42f, 0.11f, 0.21f, 0.5f); // her white bib
+        if (coat.pattern == Coat.TUXEDO) patch(c, WHITE, -0.12f, -0.3f, 0.16f, 0.32f, 0.55f);
         patch(c, 0x3DFFFFFF, 0.26f, -0.33f, 0.13f, 0.15f, 0.3f); // light on the haunch
         shade(c, -0.72f, 0f);
         c.restore();
@@ -1123,6 +1170,7 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         }
         patch(c, WHITE, -0.04f, -0.27f, 0.26f, 0.08f, 0.45f);
         patch(c, WHITE, -0.32f, -0.4f, 0.09f, 0.13f, 0.45f);
+        if (coat.pattern == Coat.TUXEDO) patch(c, WHITE, -0.1f, -0.3f, 0.34f, 0.12f, 0.55f);
         shade(c, -0.7f, -0.24f);
         c.restore();
         edge(c, -0.7f, -0.24f);

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pet Cat, the "just the cat" app: she lives along the bottom of your TV's own home screen.
+     Nothing else changes. See cat.sh. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.petcat.overlay" android:versionCode="1" android:versionName="1.0">
+    <uses-sdk android:minSdkVersion="22" android:targetSdkVersion="34" />
+    <!-- To draw her over the home screen. cat.sh grants it with adb; there's no settings page on most TVs. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- To know when the home screen is in front, so she's never over an app or a film. Also granted by cat.sh. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" xmlns:tools="http://schemas.android.com/tools" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+    </queries>
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <application android:label="Pet Cat" android:allowBackup="false"
+        android:theme="@android:style/Theme.Translucent.NoTitleBar">
+        <activity android:name="com.ansub.tvhome.PetActivity" android:exported="true"
+            android:excludeFromRecents="true" android:noHistory="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <service android:name="com.ansub.tvhome.PetService" android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="A pet cat drawn over the home screen" />
+        </service>
+        <receiver android:name="com.ansub.tvhome.PetBoot" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

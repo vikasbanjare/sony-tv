@@ -1,6 +1,6 @@
-# TV Detox on a Sony BRAVIA
+# Pet Cat on a Sony BRAVIA
 
-This repo is a copy of [Ansub/tv-detox](https://github.com/Ansub/tv-detox) (MIT, upstream commit `c8d555d`).
+The full walkthrough on a BRAVIA (tested on a BRAVIA 3, K-55S30, Google TV). The general guide is the [README](../README.md).
 Everything below runs **from your laptop on the same Wi-Fi as the TV**. A cloud session can't reach your TV.
 
 ## 1. Prepare the TV
@@ -16,8 +16,8 @@ Everything below runs **from your laptop on the same Wi-Fi as the TV**. A cloud 
 brew install android-platform-tools
 # Windows: download SDK Platform Tools from developer.android.com, run the commands from Git Bash
 
-git clone https://github.com/vikasbanjare/sony-tv.git
-cd sony-tv
+git clone https://github.com/vikasbanjare/pet-cat.git
+cd pet-cat
 ```
 
 ## 3. Install the home screen
@@ -45,7 +45,7 @@ sh install.sh <TV_IP> "" "bluetooth,sound,picture"
 
 ## The living home screen
 
-This repo's build (`release/tvhome.apk`, installed by `install.sh`) adds, with no animations and no extra memory to speak of:
+`install.sh` installs `release/tvhome.apk`, which adds, with no animations and no extra memory to speak of:
 
 - **The background takes the colour of the app you're on**: red for Netflix, green for Spotify.
 - **A sky that follows the real sun**: sunrise glow, daytime blue, sunset colours, stars at night, with soft hills on the horizon.
@@ -63,12 +63,12 @@ adb shell am start -n com.ansub.tvhome/.MainActivity --es name Vikas --es place 
 
 ## Speed it up
 
-[`sony-bravia.txt`](sony-bravia.txt) turns off Sony's promos, demos and other extras.
+[`cleanup/sony-bravia.txt`](../cleanup/sony-bravia.txt) turns off Sony's promos, demos and other extras.
 It leaves animations on: with them off, Apple TV kept stalling on this TV.
 Read it first and delete any line for an app you use, then:
 
 ```sh
-sh check.sh <TV_IP> --fix sony-bravia.txt
+sh check.sh <TV_IP> --fix cleanup/sony-bravia.txt
 ```
 
 Run the same command again whenever a Sony update turns something back on.
@@ -83,5 +83,4 @@ sh check.sh <TV_IP> --fix    # fix it
 sh undo.sh <TV_IP>           # put the Sony home screen back and remove this one
 ```
 
-Do the full cleanup (removing bloatware, animations, sleep timer) with Claude Code running **on your laptop**,
-using the prompt in [README.md](README.md#get-started).
+Prefer to keep Google TV's home screen? `sh cat.sh <TV_IP>` puts just the cat on it (see the [README](../README.md#1-just-the-cat)).

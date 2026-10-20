@@ -183,6 +183,7 @@ public class MainActivity extends Activity {
         header.setGravity(Gravity.BOTTOM);
         shownLocale = java.util.Locale.getDefault();
         clock = new ClockCat(this, light);
+        clock.setCoat(Coat.parse(getSharedPreferences(PREFS, 0).getString("coat", null)));
         clock.setTextSize(px(CLOCK_BIG));
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, -2);
         cp.leftMargin = -clock.glowPad(); // the digits line up with the apps; the glow sticks out
@@ -274,7 +275,8 @@ public class MainActivity extends Activity {
         String quick = intent == null ? null : intent.getStringExtra("quick");
         String name = intent == null ? null : intent.getStringExtra("name");
         String place = intent == null ? null : intent.getStringExtra("place");
-        if (apps == null && quick == null && name == null && place == null) return false;
+        String coat = intent == null ? null : intent.getStringExtra("coat");
+        if (apps == null && quick == null && name == null && place == null && coat == null) return false;
         SharedPreferences prefs = getSharedPreferences(PREFS, 0);
         String stamp = intent.getStringExtra("stamp");
         if (stamp != null && stamp.equals(prefs.getString("stamp", null))) return false;
@@ -290,7 +292,7 @@ public class MainActivity extends Activity {
             if (quick.isEmpty() || quick.equalsIgnoreCase("none")) e.remove("quick");
             else e.putString("quick", quick);
         }
-        for (String[] kv : new String[][] {{"name", name}, {"place", place}}) {
+        for (String[] kv : new String[][] {{"name", name}, {"place", place}, {"coat", coat}}) {
             if (kv[1] == null) continue;
             String v = kv[1].trim();
             if (v.isEmpty() || v.equalsIgnoreCase("none")) e.remove(kv[0]);
@@ -298,6 +300,7 @@ public class MainActivity extends Activity {
         }
         e.apply();
         if (place != null) { weatherAt = 0; weatherTried = 0; weather = null; } // look again for the new place
+        if (coat != null && clock != null) clock.setCoat(Coat.parse(prefs.getString("coat", null)));
         sceneKey = null;
         dirty = true;
         return true;

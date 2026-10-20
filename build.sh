@@ -1,5 +1,8 @@
 #!/bin/sh
-# Builds out/tvhome.apk. Needs Java 17 and the Android SDK (platform 34, build-tools 34).
+# Builds both apps into out/:
+#   out/tvhome.apk   the home screen with the clock, the sky and the cat (install.sh)
+#   out/petcat.apk   just the cat, over the TV's own home screen (cat.sh)
+# Needs Java 17 and the Android SDK (platform 34, build-tools 34).
 #   macOS:  brew install openjdk@17 && brew install --cask android-commandlinetools
 #           sdkmanager "platforms;android-34" "build-tools;34.0.0"
 # Use a different app list with: APPS=my-apps.txt sh build.sh
@@ -13,7 +16,7 @@ SDK=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}
 BT=$SDK/build-tools/34.0.0; JAR=$SDK/platforms/android-34/android.jar
 [ -f "$JAR" ] && [ -d "$BT" ] || { echo "Android SDK not found. Set ANDROID_HOME, and install platforms;android-34 and build-tools;34.0.0." >&2; exit 1; }
 
-rm -rf out; mkdir -p out/classes out/dex out/gen/com/ansub/tvhome
+rm -rf out; mkdir -p out/gen/com/ansub/tvhome
 
 # Turn the app list into Apps.java.
 {
@@ -23,19 +26,30 @@ rm -rf out; mkdir -p out/classes out/dex out/gen/com/ansub/tvhome
   echo "}; }"
 } > out/gen/com/ansub/tvhome/Apps.java
 
-"$BT/aapt2" link -o out/base.apk -I "$JAR" --manifest AndroidManifest.xml --min-sdk-version 21 --target-sdk-version 34
-# shellcheck disable=SC2046 # javac and d8 want one argument per file, so the list is split on purpose
-javac -nowarn -Xlint:-options -encoding UTF-8 -source 1.8 -target 1.8 -bootclasspath "$JAR:$BT/core-lambda-stubs.jar" \
-  -d out/classes $(find src out/gen -name "*.java")
-# shellcheck disable=SC2046 # same here
-"$BT/d8" --min-api 21 --release --lib "$JAR" --output out/dex $(find out/classes -name '*.class')
-cp out/base.apk out/unsigned.apk; (cd out/dex && zip -q ../unsigned.apk classes.dex)
-"$BT/zipalign" -f 4 out/unsigned.apk out/aligned.apk
-
 # A signing key is made on first build. Keep key.jks: updates must be signed with the same key.
 # (Releases are signed with their own key: set KEYSTORE and KEYSTORE_PASS.)
 KS=${KEYSTORE:-key.jks}; PASS=${KEYSTORE_PASS:-tvhome123}
 [ -f "$KS" ] || keytool -genkeypair -keystore "$KS" -storepass "$PASS" -keypass "$PASS" -alias tvhome \
   -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=tvhome" >/dev/null 2>&1
-"$BT/apksigner" sign --ks "$KS" --ks-pass "pass:$PASS" --out out/tvhome.apk out/aligned.apk
-echo "Built out/tvhome.apk"
+
+# build <name> <manifest> <java files...>
+build() {
+  name=$1; manifest=$2; shift 2
+  w=out/$name; rm -rf "$w"; mkdir -p "$w/classes" "$w/dex"
+  "$BT/aapt2" link -o "$w/base.apk" -I "$JAR" --manifest "$manifest" --min-sdk-version 21 --target-sdk-version 34
+  # shellcheck disable=SC2068 # javac and d8 want one argument per file, so the list is split on purpose
+  javac -nowarn -Xlint:-options -encoding UTF-8 -source 1.8 -target 1.8 -bootclasspath "$JAR:$BT/core-lambda-stubs.jar" \
+    -d "$w/classes" $@
+  # shellcheck disable=SC2046 # same here
+  "$BT/d8" --min-api 21 --release --lib "$JAR" --output "$w/dex" $(find "$w/classes" -name '*.class')
+  cp "$w/base.apk" "$w/unsigned.apk"; (cd "$w/dex" && zip -q ../unsigned.apk classes.dex)
+  "$BT/zipalign" -f 4 "$w/unsigned.apk" "$w/aligned.apk"
+  "$BT/apksigner" sign --ks "$KS" --ks-pass "pass:$PASS" --out "out/$name.apk" "$w/aligned.apk"
+  echo "Built out/$name.apk"
+}
+
+S=src/com/ansub/tvhome
+# The home screen: everything except the overlay's own classes.
+build tvhome AndroidManifest.xml $(find src out/gen -name "*.java" | grep -v -E 'Pet(Service|Activity|Boot)\.java')
+# Just the cat: her drawing and behaviour, her coat, and the overlay service around them.
+build petcat overlay/AndroidManifest.xml $S/ClockCat.java $S/Coat.java $S/Alive.java $S/PetService.java $S/PetActivity.java $S/PetBoot.java

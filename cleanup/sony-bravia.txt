@@ -1,5 +1,5 @@
 # Speed-up changes for the Sony BRAVIA. Apply or re-apply after an update with:
-#   sh check.sh <TV_IP> --fix sony-bravia.txt
+#   sh check.sh <TV_IP> --fix cleanup/sony-bravia.txt
 # Delete a line (or put # in front) to keep that app on. Turn one back on with:
 #   adb shell pm enable <package>
 
