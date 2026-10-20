@@ -9,7 +9,13 @@ Copy the folder to a USB stick (exFAT) and play it in the TV's **Media Player**.
 TV's own processing, the same path Netflix and YouTube go through. Play the same files from the
 Mac with mpv to test the HDMI path.
 
-Getting them to the TV, either way:
+Easiest: start each clip from the Mac. It opens on the TV by itself (copied over Wi-Fi the first time):
+
+```sh
+sh scripts/play-on-tv.sh <TV_IP> sdr-black-clipping
+```
+
+Or copy them yourself:
 
 - **USB stick.** macOS formats exFAT itself: Disk Utility > the stick > Erase > Format **ExFAT**,
   Scheme **Master Boot Record**. Then drag `tests/patterns` onto it.

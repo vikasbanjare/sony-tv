@@ -30,6 +30,7 @@ The scripts only read from the TV; every picture and sound change is made by you
 | `scripts/make-patterns.sh` | Makes the test clips (black/white clipping, grey ramp, motion, HDR10 steps, audio) | No |
 | `scripts/adb-diagnostics.sh` | Saves model, Android build, display modes, HDR and audio facts | Reads only |
 | `scripts/bravia-rest-probe.sh` | Checks whether the TV answers Sony's REST API for picture/sound settings | Reads only |
+| `scripts/play-on-tv.sh` | Opens a test clip on the TV from the Mac (copies it over first if needed) | Copies clips to the TV's Movies folder; nothing else |
 | `scripts/log-experiment.sh` | Adds a test result to `tests/tests.csv` | No |
 
 ## Steps
