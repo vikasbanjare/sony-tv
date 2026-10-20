@@ -1,5 +1,32 @@
 # Presets
 
+## Your settings (tested on the TV, 2026-10-20)
+
+Everything below was checked with the test clips in a dark room. "As found" means the TV was already
+right and nothing needed changing.
+
+**Films and series (SDR):** Display & Sound > Picture
+- Picture mode: **Professional** (neutral greys; Standard and Vivid tint everything blue). Use **Cinema** if
+  Professional feels too dim in daytime.
+- Brightness, Black level, Gamma, Black adjust: **as found** (shadow and highlight detail both correct)
+- Motion: Motionflow **Custom**, Smoothness **1**, Clearness **Min**, Film mode **High** (24p and 50p smooth)
+
+**HDR10 / HLG:** settings **as found** (shadow detail visible, highlights distinct up to about 1000 nits).
+
+**Dolby Vision (not tested with real DV content yet):** Dolby Vision **Dark** in the evening,
+Dolby Vision **Bright** in daytime. Check with a Dolby Vision title on Netflix or Prime.
+
+**Sound:** Display & Sound > Audio
+- TV position: **Wall mount** (correct)
+- Surround **Auto**, Surround effect **minimum**, Equaliser **flat** (no rattle on the bass test)
+- Dialogue enhancer: minimum now; try **High** on a talking scene at the same volume and keep it if voices are clearer
+- Auto Volume: On is handy for TV channels and adverts, Off for films
+
+**Not possible on this TV** (and why): `unavailable_features.md`. Biggest upgrade left: a soundbar on **HDMI 3** (eARC).
+
+---
+
+
 **Nothing here has been tested on the TV yet.** These are the starting points the tests in
 `../tests/tests.csv` begin from. After each test, replace "start from" with what won, and the test ID that proved it.
 A setting with no test ID is a guess.
