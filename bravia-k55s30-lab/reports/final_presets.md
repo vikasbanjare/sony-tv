@@ -11,7 +11,7 @@ use (each app, each HDMI port) and check the other inputs afterwards.
 
 | Setting | Start from | Decided by | Kept value |
 |---|---|---|---|
-| Picture mode | Cinema; compare Professional | P01, P02 | |
+| Picture mode | Cinema; compare Professional | P01, P02, T003 | **Professional** (neutral grey in T003; Standard/Vivid tint blue) |
 | Light sensor | Off | P03 | |
 | Brightness | Low enough that black bars don't glow | P10 | |
 | Black level, Gamma | Default, then checked on the clips | P06, P07 | |
