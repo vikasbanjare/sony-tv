@@ -63,8 +63,10 @@ echo "SDR motion clips (the slow part: a few minutes)"
 MDUR=$((DUR < 30 ? DUR : 30))
 MOTION="-c:v libx264 -preset medium -crf 18 -maxrate 40M -bufsize 80M -profile:v high -pix_fmt yuv420p \
  -color_range tv -colorspace bt709 -color_primaries bt709 -color_trc bt709 -movflags +faststart"
+# One still frame of the test card (frozen with loop) slides sideways, so the only thing that
+# moves is the pan: watch the edges of the colour blocks and lines for smooth vs jerky movement.
 pan() { # name, size, rate, scroll speed, level
-  $FF -f lavfi -i "testsrc2=s=$2:r=$3:d=$MDUR,scroll=horizontal=$4,format=yuv420p" $MOTION -level:v "$5" "$OUT/$1.mp4"
+  $FF -f lavfi -i "testsrc2=s=$2:r=$3:d=0.1,loop=loop=-1:size=1,scroll=horizontal=$4,format=yuv420p" -t "$MDUR" $MOTION -level:v "$5" "$OUT/$1.mp4"
   echo "  $OUT/$1.mp4"
 }
 pan sdr-motion-pan-50p "${W}x$H" 50 0.0015 5.2
