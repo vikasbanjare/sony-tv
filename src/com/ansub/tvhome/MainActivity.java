@@ -95,11 +95,11 @@ public class MainActivity extends Activity {
     // Layout is designed at 1920x1080 and scaled to the TV's real UI size by px().
     private static final int MARGIN = 96, GAP = 36, RADIUS = 22;
     private static final int ROW1_TOP = 604, ROW_STEP = 224;
-    private static final int GRID_MIN_TOP = 400; // more rows push the grid up, but not into the clock
-    private static final int ICON_TOP = 76, ICON_BUTTON = 72, ICON_SIZE = 40, ICON_GAP = 12; // level with the date
+    private static final int GRID_MIN_TOP = 470; // more rows push the grid up, but not into the clock
+    private static final int ICON_TOP = 100, ICON_BUTTON = 72, ICON_SIZE = 40, ICON_GAP = 12; // level with the greeting
     private float scale = 1f;
 
-    private static Typeface regular, semibold;
+    private static Typeface regular, semibold, light;
 
     private FrameLayout root; // the page, inside a vertical scroller
     private int tileW, tileH, gridTop; // app grid geometry, set by buildTiles
@@ -112,10 +112,20 @@ public class MainActivity extends Activity {
     private TextView moveHint;  // shown above the apps while moving
     private boolean longPressed; // OK was held: swallow the key-up so the app doesn't open
 
-    // The sky and greeting follow the time: checked every few minutes while the home screen shows,
-    // and only redrawn when the sun has moved a degree or the day changed.
-    private TextView greeting;
-    private String skyKey;
+    // The sky, greeting and the line under the clock follow the time: checked every few minutes while
+    // the home screen shows. The scene (see Alive) is painted off the main thread, and only again when
+    // the sun has moved a degree, the weather or the day changed.
+    private TextView greeting, sunLine, badge;
+    private String sceneKey;
+    private final java.util.concurrent.ExecutorService worker = java.util.concurrent.Executors.newSingleThreadExecutor();
+    private Alive.Weather weather;
+    private long weatherAt, weatherTried; // last answer, last try
+    // The window background: the painted scene, with two glows in the focused app's color on top.
+    private LayerDrawable backdrop;
+    private GradientDrawable accentTop, accentMid;
+    private int accentNow = Alive.NEUTRAL;
+    private android.animation.ValueAnimator accentAnim;
+    private final java.util.Map<String, Integer> accents = new java.util.HashMap<>();
     private long awaySince; // when the home screen was last left, to know when to suggest an app
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable tick = new Runnable() {
@@ -158,29 +168,46 @@ public class MainActivity extends Activity {
         root.setClipChildren(false);
         scroller.addView(root, new FrameLayout.LayoutParams(-1, -2));
 
+        backdrop();
+
+        // The greeting, a big thin clock, then the date with sunrise, sunset or the moon, and a badge
+        // for the weather or a festival.
         LinearLayout clock = new LinearLayout(this);
         clock.setOrientation(LinearLayout.VERTICAL);
         shownLocale = java.util.Locale.getDefault();
-        String day = Strings.datePattern();
-        TextClock date = clock(day, day, px(30), 0xA8FFFFFF, regular);
-        TextClock time = clock("h:mm", "H:mm", px(176), Color.WHITE, semibold);
-        time.setLetterSpacing(-0.028f);
+        greeting = text(px(40), 0xEBFFFFFF, semibold);
+        greeting.setIncludeFontPadding(false);
+        clock.addView(greeting);
+        TextClock time = clock("h:mm", "H:mm", px(212), Color.WHITE, light);
+        time.setLetterSpacing(-0.03f);
         time.setFontFeatureSettings("tnum");
         time.setIncludeFontPadding(false);
-        // "Good evening, Vikas · Tuesday, 20 October" above the time.
-        LinearLayout line = new LinearLayout(this);
-        greeting = text(px(30), 0xE6FFFFFF, semibold);
-        TextView dot = text(px(30), 0x66FFFFFF, regular);
-        dot.setText("  ·  ");
-        line.addView(greeting);
-        line.addView(dot);
-        line.addView(date);
-        clock.addView(line);
-        refreshAlive();
+        time.setShadowLayer(px(40), 0, px(8), 0x40000000);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-2, -2);
-        tp.topMargin = px(-20); // pull the big digits up under the date
+        tp.topMargin = px(4);
+        tp.leftMargin = px(-10); // thin digits carry their own side space
         clock.addView(time, tp);
-        root.addView(clock, at(px(MARGIN), px(92), -2, -2));
+        LinearLayout line = new LinearLayout(this);
+        line.setGravity(Gravity.CENTER_VERTICAL);
+        String day = Strings.datePattern();
+        line.addView(clock(day, day, px(28), 0x9EFFFFFF, regular));
+        sunLine = text(px(28), 0x9EFFFFFF, regular);
+        line.addView(sunLine);
+        badge = text(px(24), 0xF2FFFFFF, regular);
+        GradientDrawable pill = new GradientDrawable();
+        pill.setCornerRadius(px(999));
+        pill.setColor(0x1AFFFFFF);
+        pill.setStroke(Math.max(1, px(1)), 0x1FFFFFFF);
+        badge.setBackground(pill);
+        badge.setPadding(px(18), px(7), px(18), px(7));
+        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, -2);
+        bp.leftMargin = px(20);
+        line.addView(badge, bp);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        lp.topMargin = px(26);
+        clock.addView(line, lp);
+        refreshAlive();
+        root.addView(clock, at(px(MARGIN), px(112), -2, -2));
 
         moveHint = text(px(24), 0xA8FFFFFF, regular);
         moveHint.setText(Strings.t("Use the arrows to move it, then press OK"));
@@ -209,6 +236,9 @@ public class MainActivity extends Activity {
         unregisterReceiver(packagesChanged);
         ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         if (cm != null) try { cm.unregisterNetworkCallback(networkChanged); } catch (Exception ignored) {}
+        handler.removeCallbacks(tick);
+        if (accentAnim != null) accentAnim.cancel();
+        worker.shutdownNow();
         super.onDestroy();
     }
 
@@ -251,7 +281,8 @@ public class MainActivity extends Activity {
             else e.putString(kv[0], v);
         }
         e.apply();
-        skyKey = null;
+        if (place != null) { weatherAt = 0; weatherTried = 0; weather = null; } // look again for the new place
+        sceneKey = null;
         dirty = true;
         return true;
     }
@@ -305,18 +336,113 @@ public class MainActivity extends Activity {
         super.onPause();
     }
 
+    private static final int SCENE = 1; // the backdrop layer the painted scene goes in
+    private boolean festive;
+
+    // The window background starts as a plain gradient of the sky, until the scene is painted.
+    private void backdrop() {
+        double[] at = Alive.place(getSharedPreferences(PREFS, 0));
+        GradientDrawable sky = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                Alive.skyColors(Alive.sunElevation(System.currentTimeMillis(), at[0], at[1])));
+        accentTop = new GradientDrawable();
+        accentMid = new GradientDrawable();
+        float[][] where = {{0.80f, 0.08f, 1000}, {0.62f, 0.52f, 800}};
+        GradientDrawable[] glows = {accentTop, accentMid};
+        for (int i = 0; i < 2; i++) {
+            glows[i].setGradientType(GradientDrawable.RADIAL_GRADIENT);
+            glows[i].setGradientCenter(where[i][0], where[i][1]);
+            glows[i].setGradientRadius(px((int) where[i][2]));
+            glows[i].setDither(true);
+        }
+        backdrop = new LayerDrawable(new Drawable[] {sky, accentTop, accentMid});
+        backdrop.setId(0, SCENE);
+        setAccent(Alive.NEUTRAL);
+        getWindow().setBackgroundDrawable(backdrop);
+    }
+
+    // The glows take the focused app's color, softer on festival days so the festival shows.
+    private void setAccent(int color) {
+        accentNow = color;
+        int clear = color & 0x00FFFFFF;
+        accentTop.setColors(new int[] {Alive.fade(color | 0xFF000000, festive ? 0.22f : 0.5f), clear});
+        accentMid.setColors(new int[] {Alive.fade(color | 0xFF000000, 0.16f), clear});
+    }
+
+    private void accentTo(int color) {
+        if (accentAnim != null) accentAnim.cancel();
+        if (color == accentNow) return;
+        accentAnim = android.animation.ValueAnimator.ofArgb(accentNow, color);
+        accentAnim.setDuration(350);
+        accentAnim.addUpdateListener(a -> setAccent((Integer) a.getAnimatedValue()));
+        accentAnim.start();
+    }
+
     private void refreshAlive() {
         Calendar now = Calendar.getInstance();
+        long ms = now.getTimeInMillis();
         SharedPreferences prefs = getSharedPreferences(PREFS, 0);
-        String festival = Alive.festival(now);
+        final String festival = Alive.festival(now);
         greeting.setText(Alive.greeting(now, festival, prefs.getString("name", null)));
-        double[] at = Alive.place(prefs);
-        double sun = Alive.sunElevation(now.getTimeInMillis(), at[0], at[1]);
-        boolean morning = now.get(Calendar.HOUR_OF_DAY) < 12;
-        String key = Math.round(sun) + "|" + morning + "|" + festival;
-        if (key.equals(skyKey)) return;
-        skyKey = key;
-        getWindow().setBackgroundDrawable(Alive.sky(sun, morning, festival, px(1250)));
+        final double[] at = Alive.place(prefs);
+        final double sun = Alive.sunElevation(ms, at[0], at[1]);
+        final boolean morning = now.get(Calendar.HOUR_OF_DAY) < 12;
+        final double moon = Alive.moonAge(ms);
+        if (festive != (festival != null)) {
+            festive = festival != null;
+            setAccent(accentNow);
+        }
+
+        // Next to the date: the next sunrise or sunset, or the moon in the evening.
+        String sunText = null;
+        if (sun < -0.833 && now.get(Calendar.HOUR_OF_DAY) >= 12 && Alive.moonLit(moon) > 0.04) {
+            sunText = Alive.moonText(moon);
+        } else {
+            long next = Alive.nextSunEvent(ms, at[0], at[1]);
+            if (next != 0) sunText = (next > 0 ? "Sunrise " : "Sunset ")
+                    + android.text.format.DateFormat.getTimeFormat(this).format(new java.util.Date(Math.abs(next)));
+        }
+        sunLine.setText(sunText == null ? "" : "  ·  " + sunText);
+
+        // The weather, once a place is set: every 30 minutes, or 10 after a failed try. An answer
+        // older than 3 hours (the TV was offline) isn't shown.
+        if (!prefs.contains("place")) weather = null;
+        else if (ms - weatherAt > 30 * 60000 && ms - weatherTried > 10 * 60000) {
+            weatherTried = ms;
+            worker.execute(() -> {
+                final Alive.Weather got = Alive.fetchWeather(at[0], at[1]);
+                if (got != null) runOnUiThread(() -> {
+                    weather = got;
+                    weatherAt = System.currentTimeMillis();
+                    refreshAlive();
+                });
+            });
+        }
+        if (weather != null && ms - weatherAt > 3 * 3600000L) weather = null;
+
+        // The badge: the festival on its day, else the weather, else a festival coming up.
+        String upcoming = Alive.festivalBadge(now);
+        String b = festival != null ? upcoming : weather != null ? Alive.weatherBadge(weather) : upcoming;
+        badge.setText(b);
+        badge.setVisibility(b == null ? View.GONE : View.VISIBLE);
+
+        final Alive.Weather w = weather;
+        String key = Math.round(sun) + "|" + morning + "|" + festival + "|" + Math.round(moon)
+                + "|" + (w == null ? "-" : w.code + "/" + w.cloud / 20);
+        if (key.equals(sceneKey)) return;
+        sceneKey = key;
+        // Painted at 1920 wide at most: on a 4K screen it's scaled up, which a soft sky doesn't mind.
+        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+        final int sw = Math.min(dm.widthPixels, 1920), sh = Math.round(dm.heightPixels * (sw / (float) dm.widthPixels));
+        worker.execute(() -> {
+            final Bitmap scene;
+            try { scene = Alive.paint(sw, sh, sun, morning, festival, moon, w); }
+            catch (Throwable t) { return; } // out of memory: keep the scene there is
+            runOnUiThread(() -> {
+                if (isDestroyed()) return;
+                backdrop.setDrawableByLayerId(SCENE, new BitmapDrawable(getResources(), scene));
+                backdrop.invalidateSelf();
+            });
+        });
     }
 
     // The TV's language changed: start over so the labels and the date follow it.
@@ -421,7 +547,9 @@ public class MainActivity extends Activity {
         if (banner != null) {
             bg.setColor(0xFF1E1A1C);
             ImageView iv = new ImageView(this);
-            iv.setImageDrawable(fit(banner, w, h));
+            Drawable fitted = fit(banner, w, h);
+            iv.setImageDrawable(fitted);
+            accents.put(key, Alive.accent(fitted));
             card.addView(iv, new FrameLayout.LayoutParams(-1, -1));
         } else {
             // Quiet "glass" tile: icon above label.
@@ -433,7 +561,11 @@ public class MainActivity extends Activity {
             ImageView iv = new ImageView(this);
             int size = lineIcon != null ? px(44) : px(64);
             if (lineIcon != null) iv.setImageDrawable(new LineIcon(lineIcon));
-            else if (appIcon != null) iv.setImageDrawable(fit(appIcon, size, size));
+            else if (appIcon != null) {
+                Drawable fitted = fit(appIcon, size, size);
+                iv.setImageDrawable(fitted);
+                accents.put(key, Alive.accent(fitted));
+            }
             inner.addView(iv, new LinearLayout.LayoutParams(size, size));
             TextView t = text(px(24), 0xE0FFFFFF, regular);
             t.setText(label);
@@ -460,9 +592,20 @@ public class MainActivity extends Activity {
         }
 
         final boolean glass = banner == null;
+        // Focused: lifted, a white outline and a soft shine, a shadow in the app's own color, and the
+        // background glows in it too. The rest sit a little dimmer so the focused one stands out.
+        final Integer accent = accents.get(key);
+        if (!glass) card.setAlpha(0.86f);
+        if (android.os.Build.VERSION.SDK_INT >= 28 && accent != null) {
+            card.setOutlineSpotShadowColor(accent);
+            card.setOutlineAmbientShadowColor(accent);
+        }
         card.setOnFocusChangeListener((v, has) -> {
             if (has) focusedKey = key;
             if (glass) bg.setColor(has ? 0x38FFFFFF : 0x13FFFFFF);
+            else v.setAlpha(has ? 1f : 0.86f);
+            if (!key.equals(movingKey)) ((FrameLayout) v).setForeground(has ? focusRing() : null);
+            if (has) accentTo(accent != null ? accent : Alive.NEUTRAL);
             v.animate().scaleX(has ? 1.1f : 1f).scaleY(has ? 1.1f : 1f).translationZ(has ? px(26) : 0)
                     .setDuration(140).withLayer().start();
             if (caption != null) caption.setVisibility(has ? View.VISIBLE : View.INVISIBLE);
@@ -903,6 +1046,17 @@ public class MainActivity extends Activity {
         return gridTop + (i / PER_ROW) * px(ROW_STEP);
     }
 
+    // A soft shine from the top left and a white outline, drawn over the focused tile.
+    private Drawable focusRing() {
+        GradientDrawable shine = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[] {0x38FFFFFF, 0x00FFFFFF, 0x00FFFFFF});
+        shine.setCornerRadius(px(RADIUS));
+        GradientDrawable ring = new GradientDrawable();
+        ring.setCornerRadius(px(RADIUS));
+        ring.setStroke(Math.max(2, px(3)), 0xF2FFFFFF);
+        return new LayerDrawable(new Drawable[] {shine, ring});
+    }
+
     private View tile(String key) {
         for (View t : tiles) if (t.getTag().equals(key)) return t;
         return null;
@@ -947,7 +1101,7 @@ public class MainActivity extends Activity {
             if (!down) {
                 movingKey = null;
                 longPressed = false;
-                ((FrameLayout) tile(key)).setForeground(null);
+                ((FrameLayout) tile(key)).setForeground(focusRing()); // still focused
                 moveHint.setVisibility(View.GONE);
                 saveRow();
             }
@@ -995,6 +1149,7 @@ public class MainActivity extends Activity {
         if (regular != null) return;
         regular = fromFile("/system/fonts/MILanPro_Normal.ttf", Typeface.create("sans-serif", Typeface.NORMAL));
         semibold = fromFile("/system/fonts/MILanPro_SemiBold.ttf", Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        light = Typeface.create("sans-serif-light", Typeface.NORMAL);
     }
 
     private static Typeface fromFile(String path, Typeface fallback) {
