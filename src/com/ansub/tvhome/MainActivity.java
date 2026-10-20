@@ -95,7 +95,9 @@ public class MainActivity extends Activity {
     // Layout is designed at 1920x1080 and scaled to the TV's real UI size by px().
     private static final int MARGIN = 96, GAP = 36, RADIUS = 22;
     private static final int ROW1_TOP = 604, ROW_STEP = 224;
-    private static final int GRID_MIN_TOP = 470; // more rows push the grid up, but not into the clock
+    // More rows push the grid up, but never into the clock: it starts this far below it. With a second
+    // row the clock gets smaller, so the bottom row still fits on screen.
+    private static final int HEADER_TOP = 96, HEADER_GAP = 64, CLOCK_BIG = 250, CLOCK_SMALL = 210;
     private static final int ICON_TOP = 100, ICON_BUTTON = 72, ICON_SIZE = 40, ICON_GAP = 12; // level with the greeting
     private float scale = 1f;
 
@@ -116,6 +118,8 @@ public class MainActivity extends Activity {
     // the home screen shows. The scene (see Alive) is painted off the main thread, and only again when
     // the sun has moved a degree, the weather or the day changed.
     private TextView greeting, sunLine, badge;
+    private LinearLayout header; // greeting, clock and the line under it
+    private TextClock bigClock;
     private String sceneKey;
     private final java.util.concurrent.ExecutorService worker = java.util.concurrent.Executors.newSingleThreadExecutor();
     private Alive.Weather weather;
@@ -170,29 +174,42 @@ public class MainActivity extends Activity {
 
         backdrop();
 
-        // The greeting, a big thin clock, then the date with sunrise, sunset or the moon, and a badge
-        // for the weather or a festival.
-        LinearLayout clock = new LinearLayout(this);
-        clock.setOrientation(LinearLayout.VERTICAL);
+        // A big clock filled with a gradient that ends in the focused app's color, a thin line, then
+        // stacked beside it: the greeting, the date with sunrise, sunset or the moon, and a badge for
+        // the weather or a festival. Side by side, so the clock stays big with two rows of apps.
+        header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setClipChildren(false); // the clock's glow spreads past its edges
         shownLocale = java.util.Locale.getDefault();
-        greeting = text(px(40), 0xEBFFFFFF, semibold);
+        bigClock = clock("h:mm", "H:mm", px(CLOCK_BIG), Color.WHITE, light);
+        bigClock.setLetterSpacing(-0.035f);
+        bigClock.setFontFeatureSettings("tnum");
+        bigClock.setIncludeFontPadding(false);
+        bigClock.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> { if (b - t != ob - ot) clockGradient(); });
+        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, -2);
+        cp.leftMargin = px(-12); // thin digits carry their own side space
+        header.addView(bigClock, cp);
+
+        View rule = new View(this);
+        rule.setBackgroundColor(0x33FFFFFF);
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(Math.max(1, px(2)), px(150));
+        rp.leftMargin = px(44);
+        rp.rightMargin = px(44);
+        header.addView(rule, rp);
+
+        LinearLayout info = new LinearLayout(this);
+        info.setOrientation(LinearLayout.VERTICAL);
+        greeting = text(px(44), Color.WHITE, semibold);
         greeting.setIncludeFontPadding(false);
-        clock.addView(greeting);
-        TextClock time = clock("h:mm", "H:mm", px(212), Color.WHITE, light);
-        time.setLetterSpacing(-0.03f);
-        time.setFontFeatureSettings("tnum");
-        time.setIncludeFontPadding(false);
-        time.setShadowLayer(px(40), 0, px(8), 0x40000000);
-        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-2, -2);
-        tp.topMargin = px(4);
-        tp.leftMargin = px(-10); // thin digits carry their own side space
-        clock.addView(time, tp);
+        info.addView(greeting);
         LinearLayout line = new LinearLayout(this);
-        line.setGravity(Gravity.CENTER_VERTICAL);
         String day = Strings.datePattern();
-        line.addView(clock(day, day, px(28), 0x9EFFFFFF, regular));
-        sunLine = text(px(28), 0x9EFFFFFF, regular);
+        line.addView(clock(day, day, px(28), 0xA8FFFFFF, regular));
+        sunLine = text(px(28), 0xA8FFFFFF, regular);
         line.addView(sunLine);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        lp.topMargin = px(14);
+        info.addView(line, lp);
         badge = text(px(24), 0xF2FFFFFF, regular);
         GradientDrawable pill = new GradientDrawable();
         pill.setCornerRadius(px(999));
@@ -201,13 +218,11 @@ public class MainActivity extends Activity {
         badge.setBackground(pill);
         badge.setPadding(px(18), px(7), px(18), px(7));
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, -2);
-        bp.leftMargin = px(20);
-        line.addView(badge, bp);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
-        lp.topMargin = px(26);
-        clock.addView(line, lp);
+        bp.topMargin = px(20);
+        info.addView(badge, bp);
+        header.addView(info);
         refreshAlive();
-        root.addView(clock, at(px(MARGIN), px(112), -2, -2));
+        root.addView(header, at(px(MARGIN), px(HEADER_TOP), -2, -2));
 
         moveHint = text(px(24), 0xA8FFFFFF, regular);
         moveHint.setText(Strings.t("Use the arrows to move it, then press OK"));
@@ -367,6 +382,19 @@ public class MainActivity extends Activity {
         int clear = color & 0x00FFFFFF;
         accentTop.setColors(new int[] {Alive.fade(color | 0xFF000000, festive ? 0.22f : 0.5f), clear});
         accentMid.setColors(new int[] {Alive.fade(color | 0xFF000000, 0.16f), clear});
+        clockGradient();
+    }
+
+    // The clock's digits: white at the top into a light tint of the focused app's color at the
+    // bottom, with a soft glow of that color behind them.
+    private void clockGradient() {
+        if (bigClock == null || bigClock.getHeight() == 0) return;
+        int c = accentNow | 0xFF000000, h = bigClock.getHeight();
+        bigClock.getPaint().setShader(new android.graphics.LinearGradient(0, h * 0.12f, 0, h * 0.95f,
+                new int[] {Color.WHITE, Alive.mix(c, Color.WHITE, 0.62f), Alive.mix(c, Color.WHITE, 0.25f)},
+                new float[] {0f, 0.55f, 1f}, android.graphics.Shader.TileMode.CLAMP));
+        bigClock.setShadowLayer(px(56), 0, px(6), Alive.fade(c, 0.45f));
+        bigClock.invalidate();
     }
 
     private void accentTo(int color) {
@@ -492,9 +520,12 @@ public class MainActivity extends Activity {
         int launchable = 0;
         for (String pkg : apps) if (launchIntent(pm, pkg) != null) launchable++;
         int rows = Math.max(1, (launchable + PER_ROW - 1) / PER_ROW);
-        gridTop = Math.max(px(GRID_MIN_TOP), px(ROW1_TOP) - (rows - 1) * px(ROW_STEP));
+        bigClock.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(rows > 1 ? CLOCK_SMALL : CLOCK_BIG));
+        header.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        int headerBottom = px(HEADER_TOP) + header.getMeasuredHeight();
+        gridTop = Math.max(headerBottom + px(HEADER_GAP), px(ROW1_TOP) - (rows - 1) * px(ROW_STEP));
         int bottomTop = gridTop + rows * px(ROW_STEP);
-        ((FrameLayout.LayoutParams) moveHint.getLayoutParams()).topMargin = gridTop - px(64);
+        ((FrameLayout.LayoutParams) moveHint.getLayoutParams()).topMargin = gridTop - px(48); // in the gap under the clock
         root.setMinimumHeight(bottomTop + h + px(MARGIN));
 
         for (String pkg : apps) {
