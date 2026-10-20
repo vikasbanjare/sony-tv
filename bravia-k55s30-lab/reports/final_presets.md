@@ -21,7 +21,7 @@ use (each app, each HDMI port) and check the other inputs afterwards.
 | Reality Creation | Auto for 1080p, off for clean 4K | P13 | |
 | Noise reduction | Off for 4K, Low for poor broadcast | P14 | |
 | Sharpness | Default or lower, no halos | P15 | |
-| Motionflow / Film mode | Off or Custom with Smoothness 1; Film mode Auto | P16, P17 | |
+| Motionflow / Film mode | Off or Custom with Smoothness 1; Film mode Auto | P16, P17, T006 | **Custom, Smoothness 1, Clearness Min, Film mode High** (24p films smooth). 50 fps content stutters on the 60 Hz panel: test Smoothness 2-3 for sport/TV |
 
 ## SDR, daytime / bright room
 
