@@ -274,9 +274,7 @@ final class Alive {
         else if (weather != null && weather.cloud > 30) stars = stars / 2;
         if (stars > 8) dots(c, 0xFFFFFFFF, stars * 160 / 255, 170, 7, 0f, 0.57f, 0.6f * u, 1.4f * u, false);
 
-        double lit = moonLit(moonAge);
-        if (sun < -4 && lit > 0.04 && !cloudy) moon(c, 0.81f * w, 0.23f * h, 54 * u, lit, moonAge < 14.77);
-
+        hills(c, w, h, sky);
         festival(c, festival, w, h, u);
 
         if (weather != null) {
@@ -294,8 +292,6 @@ final class Alive {
             if (weather.rain()) streaks(c, w, h, u, weather.storm() ? 420 : 260);
             if (weather.snow()) dots(c, 0xFFFFFFFF, 210, 220, 11, 0f, 1f, 1.2f * u, 3.2f * u, false);
         }
-
-        hills(c, w, h, sky);
 
         // Darker edges and a darker bottom keep the eye on the apps and the text easy to read.
         Paint v = new Paint(Paint.DITHER_FLAG);
@@ -378,9 +374,41 @@ final class Alive {
         }
     }
 
+    // The moon shows after dark, when there's enough of it and the sky is clear. It's painted on its
+    // own, above the glow in the focused app's color, so it stays moon-white.
+    static final float MOON_X = 0.81f, MOON_Y = 0.23f, MOON_R = 54, MOON_HALO = 7;
+
+    static boolean moonUp(double sun, double moonAge, Weather weather) {
+        return sun < -4 && moonLit(moonAge) > 0.04 && (weather == null || !weather.overcast());
+    }
+
+    // The moon and its halo in a square bitmap, the moon in the middle. u is design pixels to real ones.
+    static Bitmap moon(float u, double moonAge) {
+        float r = MOON_R * u;
+        int size = (int) Math.ceil(2 * r * MOON_HALO);
+        Bitmap b = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
+        moon(new Canvas(b), size / 2f, size / 2f, r, moonLit(moonAge), moonAge < 14.77);
+        return b;
+    }
+
+    // A full-screen layer that draws the moon's square where the moon goes.
+    static Drawable moonLayer(final Bitmap disc) {
+        return new Drawable() {
+            final Paint p = new Paint(Paint.FILTER_BITMAP_FLAG);
+            @Override public void draw(Canvas c) {
+                android.graphics.Rect b = getBounds();
+                c.drawBitmap(disc, b.left + MOON_X * b.width() - disc.getWidth() / 2f,
+                        b.top + MOON_Y * b.height() - disc.getHeight() / 2f, p);
+            }
+            @Override public void setAlpha(int a) { p.setAlpha(a); }
+            @Override public void setColorFilter(android.graphics.ColorFilter f) { p.setColorFilter(f); }
+            @Override public int getOpacity() { return android.graphics.PixelFormat.TRANSLUCENT; }
+        };
+    }
+
     // The moon as it looks tonight: the lit part is half a disc plus or minus half an ellipse.
     private static void moon(Canvas c, float cx, float cy, float r, double lit, boolean waxing) {
-        glow(c, 0x4DCFD8FF, cx, cy, r * 7, r * 7);
+        glow(c, 0x4DCFD8FF, cx, cy, r * MOON_HALO, r * MOON_HALO);
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         p.setColor(0x12FFFFFF);
         c.drawCircle(cx, cy, r, p); // the dark side, barely there
@@ -487,7 +515,7 @@ final class Alive {
             }
         int best = 0;
         for (int b = 1; b < 12; b++) if (weight[b] > weight[best]) best = b;
-        if (weight[best] < 4) return NEUTRAL;
+        if (weight[best] < 1.5) return NEUTRAL;
         int avg = Color.rgb((int) (rs[best] / weight[best]), (int) (gs[best] / weight[best]), (int) (bs[best] / weight[best]));
         Color.colorToHSV(avg, hsv);
         hsv[1] = Math.max(hsv[1], 0.65f);

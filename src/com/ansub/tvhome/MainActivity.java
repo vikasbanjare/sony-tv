@@ -336,7 +336,7 @@ public class MainActivity extends Activity {
         super.onPause();
     }
 
-    private static final int SCENE = 1; // the backdrop layer the painted scene goes in
+    private static final int SCENE = 1, MOON = 2; // the backdrop layers the painted scene and moon go in
     private boolean festive;
 
     // The window background starts as a plain gradient of the sky, until the scene is painted.
@@ -354,8 +354,9 @@ public class MainActivity extends Activity {
             glows[i].setGradientRadius(px((int) where[i][2]));
             glows[i].setDither(true);
         }
-        backdrop = new LayerDrawable(new Drawable[] {sky, accentTop, accentMid});
+        backdrop = new LayerDrawable(new Drawable[] {sky, accentTop, accentMid, new ColorDrawable(Color.TRANSPARENT)});
         backdrop.setId(0, SCENE);
+        backdrop.setId(3, MOON);
         setAccent(Alive.NEUTRAL);
         getWindow().setBackgroundDrawable(backdrop);
     }
@@ -433,13 +434,22 @@ public class MainActivity extends Activity {
         // Painted at 1920 wide at most: on a 4K screen it's scaled up, which a soft sky doesn't mind.
         android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
         final int sw = Math.min(dm.widthPixels, 1920), sh = Math.round(dm.heightPixels * (sw / (float) dm.widthPixels));
+        final boolean moonUp = Alive.moonUp(sun, moon, w);
+        final float u = dm.widthPixels / 1920f;
         worker.execute(() -> {
-            final Bitmap scene;
-            try { scene = Alive.paint(sw, sh, sun, morning, festival, moon, w); }
-            catch (Throwable t) { return; } // out of memory: keep the scene there is
+            final Bitmap scene, disc;
+            try {
+                scene = Alive.paint(sw, sh, sun, morning, festival, moon, w);
+                disc = moonUp ? Alive.moon(u, moon) : null;
+            } catch (Throwable t) { return; } // out of memory: keep the scene there is
             runOnUiThread(() -> {
                 if (isDestroyed()) return;
-                backdrop.setDrawableByLayerId(SCENE, new BitmapDrawable(getResources(), scene));
+                Drawable sc = new BitmapDrawable(getResources(), scene);
+                Drawable mn = disc == null ? new ColorDrawable(Color.TRANSPARENT) : Alive.moonLayer(disc);
+                sc.setBounds(backdrop.getBounds()); // a swapped-in layer doesn't always get its size
+                mn.setBounds(backdrop.getBounds());
+                backdrop.setDrawableByLayerId(SCENE, sc);
+                backdrop.setDrawableByLayerId(MOON, mn);
                 backdrop.invalidateSelf();
             });
         });

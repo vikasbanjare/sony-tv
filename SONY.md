@@ -47,12 +47,15 @@ sh install.sh <TV_IP> "" "bluetooth,sound,picture"
 
 This repo's build (`release/tvhome.apk`, installed by `install.sh`) adds, with no animations and no extra memory to speak of:
 
-- **A sky that follows the real sun.** Sunrise glow, daytime blue, sunset colours, stars at night, updated every few minutes.
-- **A greeting** next to the date: "Good evening, Vikas".
-- **Festival days**: Diwali lamps, Holi colours, Independence and Republic Day, Christmas snow, New Year.
+- **The background takes the colour of the app you're on**: red for Netflix, green for Spotify.
+- **A sky that follows the real sun**: sunrise glow, daytime blue, sunset colours, stars at night, with soft hills on the horizon.
+- **Tonight's moon**, in its real phase.
+- **Live weather** once your city is set: clouds, rain, fog or snow in the sky, and "☂ Light rain · 24°" under the clock (from Open-Meteo, free, checked every 30 minutes).
+- **A greeting**, a big thin clock, and the next sunrise or sunset (or the moon) under it.
+- **Festival days**: Diwali lamps, Holi colours, Independence and Republic Day, Christmas snow, New Year, with a countdown in the month before.
 - **It learns your habits.** Come back after a while and the cursor is already on the app you usually open at that time of day.
 
-Set your name, and your city so the sun is right (latitude,longitude; this one is Mumbai):
+Set your name, and your city for the weather and the sun (latitude,longitude; this one is Mumbai):
 
 ```sh
 adb shell am start -n com.ansub.tvhome/.MainActivity --es name Vikas --es place 19.07,72.88 --es stamp $(date +%s)
