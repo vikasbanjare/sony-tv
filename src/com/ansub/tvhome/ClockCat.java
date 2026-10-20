@@ -40,7 +40,8 @@ import java.util.Random;
 // the home screen never redraws for it and the remote stays as quick as without it. The page holds the
 // clock's place with slot(), and this draws the digits wherever that slot is.
 final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
-    static final int SIT = 0, WALK = 1, YAWN = 2, HOP = 3, SLEEP = 4, WAKE = 5, BAT = 6, GROOM = 7, JUMP = 8;
+    static final int SIT = 0, WALK = 1, YAWN = 2, HOP = 3, SLEEP = 4, WAKE = 5, BAT = 6, GROOM = 7, JUMP = 8,
+            LOUNGE = 9, DRAPE = 10;
     // Her coat, from the photo: a warm grey-tan tabby with dark stripes, apricot patches, a white
     // chest, chin and paws, green eyes, a pink nose and a dark ringed tail.
     private static final int FUR = 0xFF9B8569, FUR_LIGHT = 0xFFBBA88B, FUR_DARK = 0xFF2F2823, STRIPE = 0xC22F2823,
@@ -366,6 +367,24 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         return (l - rr) / (2 * d);
     }
 
+    // If she's on a round top (a 0, an 8), its radius in her units; 0 on a bar, a point or a slope.
+    private float crownR(float x) {
+        float d = catH * 0.3f, m = sample(x), l = sample(x - d), rr = sample(x + d);
+        if (m == NONE) return 0;
+        float dl = l == NONE ? catH : l - m, dr = rr == NONE ? catH : rr - m;
+        float drop = Math.min(dl, dr);
+        if (drop < catH * 0.09f || Math.abs(dl - dr) > catH * 0.25f) return 0;
+        return Math.max(0.35f, Math.min(0.95f, (d * d + drop * drop) / (2 * drop) / catH));
+    }
+
+    // The highest column near x: the crown of a curve.
+    private float crownX(float x) {
+        int a = Math.max(0, Math.round(x - catH * 0.3f)), b = Math.min(roof.length - 1, Math.round(x + catH * 0.3f));
+        int best = Math.round(x);
+        for (int i = a; i <= b; i++) if (i >= 0 && i < roof.length && roof[i] < roof[Math.max(0, Math.min(roof.length - 1, best))]) best = i;
+        return best;
+    }
+
     // How much of the digit is under her paws: small on the point of a 1, wide on the bar of a 7.
     private float roofSupport(float x) {
         float f = roofFloor(x);
@@ -564,6 +583,7 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
             case YAWN: if (p > 1.6f) set(SIT, t); break;
             case HOP: if (p > 0.6f) set(SIT, t); break;
             case GROOM: if (p > 2.4f) set(SIT, t); break;
+            case LOUNGE: case DRAPE: if (p > restFor) { set(SIT, t); stoppedAt = t; nextMove = t + 2000; } break;
             case SLEEP: if (p > napFor) set(WAKE, t); break;
             case WAKE: if (p > 1.2f) { set(SIT, t); nextMove = t + 2500; } break;
         }
@@ -602,7 +622,7 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         set(JUMP, t);
     }
 
-    private float napFor;
+    private float napFor, restFor, drapeR; // how long a nap, a lie-down or a drape lasts; the curve's radius
     private static final float CROUCH = 0.45f; // seconds she gathers herself before a jump
 
     private void choose(long t) {
@@ -614,7 +634,8 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         int n = tiles.length;
         r = rnd.nextFloat();
         if (on > 0) { // out on the tiles
-            if (r < 0.4f) { // over to another app, often the next one along
+            if (r < 0.12f) { restFor = 8 + rnd.nextInt(12); set(LOUNGE, t); return; }
+            if (r < 0.45f) { // over to another app, often the next one along
                 int g = rnd.nextFloat() < 0.6f ? on + (rnd.nextBoolean() ? 1 : -1) : 1 + rnd.nextInt(n);
                 if (g >= 1 && g <= n && g != on) goal = g;
             } else if (r < 0.62f) goal = 0; // back up to the clock
@@ -624,6 +645,19 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
             return;
         }
         if (r < 0.22f && n > 0) { goal = 1 + rnd.nextInt(n); return; } // down onto the apps
+        float top = crownX(x), R = crownR(top);
+        if (R > 0 && r < 0.5f) { // a round top: flop over it
+            x = top;
+            drapeR = R;
+            restFor = 8 + rnd.nextInt(14);
+            set(DRAPE, t);
+            return;
+        }
+        if (R == 0 && r < 0.42f && roofSupport(x) > catH * 0.38f && Math.abs(roofSlope(x)) < 0.3f) { // a flat bar: lie down
+            restFor = 8 + rnd.nextInt(14);
+            set(LOUNGE, t);
+            return;
+        }
         r = rnd.nextFloat();
         if (r < 0.38f) { // to another digit
             int i;
@@ -673,7 +707,7 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         }
         // On the digits the ground isn't flat: she stands square to it, hangs from a steep slope
         // and balances on a point.
-        boolean still = state == SIT || state == GROOM || state == YAWN || state == WAKE;
+        boolean still = state == SIT || state == GROOM || state == YAWN || state == WAKE || state == LOUNGE;
         float slope = on == 0 && !air ? roofSlope(cx) : 0;
         boolean hang = on == 0 && !air && still && Math.abs(slope) > 1.2f;
         boolean narrow = on == 0 && !air && still && roofSupport(cx) < s * 0.14f;
@@ -694,9 +728,11 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         c.scale(s, s); // from here on, 1 = her height sitting; y goes up as it gets negative
         if (hang) hanging(c, slope > 0 ? -1 : 1, time);
         else {
-            if (!air) c.rotate(-Math.max(-35f, Math.min(35f, tilt)));
+            if (!air && state != DRAPE) c.rotate(-Math.max(-35f, Math.min(35f, tilt)));
             if (narrow) c.rotate((float) Math.sin(time * 4.5f) * 3.5f); // keeping her balance
-            if (state == SLEEP) asleep(c, time, p);
+            if (state == DRAPE) drape(c, t, time, p);
+            else if (state == SLEEP) asleep(c, time, p, false);
+            else if (state == LOUNGE) asleep(c, time, p, true);
             else if (state == WALK || state == JUMP) standing(c, t, time, p, air);
             else sitting(c, t, time, p, narrow);
         }
@@ -1048,11 +1084,13 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         c.drawPath(path, fill);
     }
 
-    // Curled up asleep: a loaf, head down on her paws, tail round the front, breathing slowly.
-    private void asleep(Canvas c, float time, float p) {
+    // A loaf: asleep with her head down on her paws, or awake and lounging, tail tip flicking.
+    private void asleep(Canvas c, float time, float p, boolean awake) {
         float settle = Math.min(1f, p / 0.6f);
-        float breathe = 1 + 0.03f * (float) Math.sin(time * 1.4f);
+        float breathe = 1 + (awake ? 0.015f : 0.03f) * (float) Math.sin(time * 1.4f);
+        float mirror = turn >= 0 ? -1 : 1;
         c.save();
+        c.scale(mirror, 1);
         c.translate(0, (1 - settle) * -0.1f);
         path.reset();
         path.addOval(new RectF(-0.4f, -0.34f * breathe, 0.4f, 0), Path.Direction.CW);
@@ -1073,16 +1111,84 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         }
         c.restore();
         rim(c);
+        float flick = awake ? (float) Math.sin(time * 3.2f) * 0.05f : 0;
         path.reset(); // tail round the front
         path.moveTo(0.36f, -0.06f);
-        path.quadTo(0.3f, 0.02f, -0.05f, -0.01f);
-        tail(c, -0.05f, -0.01f);
+        path.quadTo(0.3f, 0.02f, -0.05f + flick, -0.01f - Math.abs(flick));
+        tail(c, -0.05f + flick, -0.01f - Math.abs(flick));
         ellipse(c, WHITE, -0.3f, -0.03f, 0.07f, 0.04f);
+        ellipse(c, WHITE, -0.2f, -0.02f, 0.07f, 0.04f);
         c.save();
-        c.translate(-0.24f, -0.25f);
-        c.scale(0.82f, 0.82f);
-        c.rotate(-8);
-        head(c, 0.08f, 0, 0, 0);
+        long t = SystemClock.uptimeMillis();
+        boolean blink = t >= blinkAt && t < blinkAt + 150;
+        if (awake) { c.translate(-0.22f, -0.36f); c.scale(0.9f, 0.9f); c.rotate(-3); }
+        else { c.translate(-0.24f, -0.25f); c.scale(0.82f, 0.82f); c.rotate(-8); }
+        head(c, awake ? (blink ? 0.1f : 1f) : 0.08f, 0, awake ? look * mirror : 0, 0);
+        c.restore();
+        c.restore();
+    }
+
+    // Draped over the crown of a round digit: belly on the curve, front legs hanging down one side,
+    // back legs and tail down the other, head resting, eyes half closed once she's comfortable.
+    private void drape(Canvas c, long t, float time, float p) {
+        float R = drapeR, settle = Math.min(1f, p / 0.5f);
+        float mirror = turn >= 0 ? -1 : 1;
+        float a = Math.min(52f, (float) Math.toDegrees(0.42f / R)); // how far round the curve she reaches
+        float ar = (float) Math.toRadians(a);
+        float ex = (float) (R * Math.sin(ar)), ey = (float) (R * (1 - Math.cos(ar))); // where each end of her meets the curve
+        float sway = (float) Math.sin(time * 1.7f) * 0.03f;
+        float breathe = (float) Math.sin(time * 1.4f) * 0.012f;
+        c.save();
+        c.scale(mirror, 1);
+        c.translate(0, (1 - settle) * -0.18f);
+        // Legs hang down each side (front at -x, where her head is), the far ones a shade darker.
+        int far = Alive.mix(FUR, FUR_DARK, 0.3f);
+        leg(c, far, -ex + 0.12f, ey - 0.02f, -ex + 0.1f - sway, ey + 0.34f, 0.02f);
+        leg(c, FUR, -ex + 0.03f, ey, -ex - 0.01f + sway, ey + 0.38f, -0.02f);
+        leg(c, far, ex - 0.12f, ey - 0.02f, ex - 0.1f + sway, ey + 0.34f, -0.02f);
+        leg(c, FUR, ex - 0.03f, ey, ex + 0.01f - sway, ey + 0.38f, 0.02f);
+        ellipse(c, 0xFFD9D3C8, -ex + 0.1f - sway, ey + 0.34f, 0.06f, 0.04f);
+        ellipse(c, WHITE, -ex - 0.01f + sway, ey + 0.38f, 0.065f, 0.045f);
+        ellipse(c, 0xFFD9D3C8, ex - 0.1f + sway, ey + 0.34f, 0.06f, 0.04f);
+        ellipse(c, WHITE, ex + 0.01f - sway, ey + 0.38f, 0.065f, 0.045f);
+        path.reset(); // tail hangs down the back, curling at the tip
+        path.moveTo(ex - 0.04f, ey + 0.06f);
+        path.cubicTo(ex + 0.12f, ey + 0.3f, ex + 0.06f + sway * 3, ey + 0.55f, ex - 0.08f + sway * 4, ey + 0.72f);
+        tail(c, ex - 0.08f + sway * 4, ey + 0.72f);
+        // Body: a thick band that follows the curve.
+        float ro = R + 0.17f + breathe, ri = Math.max(0.05f, R - 0.07f);
+        path.reset();
+        oval.set(-ro, R - ro, ro, R + ro);
+        path.arcTo(oval, 270 - a - 6, 2 * a + 12);
+        oval.set(-ri, R - ri, ri, R + ri);
+        path.arcTo(oval, 270 + a + 6, -2 * a - 12);
+        path.close();
+        fill.setShader(new LinearGradient(0, -0.22f, 0, 0.3f, FUR_LIGHT, FUR, Shader.TileMode.CLAMP));
+        c.drawPath(path, fill);
+        fill.setShader(null);
+        c.save();
+        c.clipPath(path);
+        ellipse(c, ORANGE, 0.1f, -0.1f, 0.16f, 0.1f);
+        ellipse(c, ORANGE, ex - 0.1f, ey - 0.02f, 0.11f, 0.1f);
+        ellipse(c, PEACH, -0.2f, 0.02f, 0.07f, 0.07f);
+        ellipse(c, WHITE, -ex + 0.1f, ey + 0.12f, 0.12f, 0.08f); // white chest showing at the front
+        line.setColor(STRIPE);
+        line.setStrokeWidth(0.035f);
+        for (int i = -2; i <= 2; i++) { // bands across her back, fanning round the curve
+            float an = (float) Math.toRadians(i * a * 0.42f);
+            float sx = (float) Math.sin(an), cy = (float) Math.cos(an);
+            c.drawLine(sx * (R - 0.04f), R - cy * (R - 0.04f), sx * (R + 0.19f), R - cy * (R + 0.19f), line);
+        }
+        c.restore();
+        rim(c);
+        // Head: at the front end, resting on the curve, turned to you.
+        c.save();
+        c.translate(-ex - 0.03f, ey - 0.13f);
+        c.scale(0.95f, 0.95f);
+        c.rotate(-a * 0.5f - 6);
+        boolean blink = t >= blinkAt && t < blinkAt + 150;
+        float open = blink ? 0.1f : p > 4 ? 0.62f : 1f;
+        head(c, open, 0, look * mirror * 0.5f, 0);
         c.restore();
         c.restore();
     }

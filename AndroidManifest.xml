@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.ansub.tvhome" android:versionCode="12" android:versionName="1.3.2-alive">
+    package="com.ansub.tvhome" android:versionCode="13" android:versionName="1.3.3-alive">
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34" />
     <!-- Only for the weather in the sky, once a place is set (see Alive). -->
     <uses-permission android:name="android.permission.INTERNET" />
