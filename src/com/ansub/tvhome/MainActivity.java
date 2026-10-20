@@ -97,7 +97,7 @@ public class MainActivity extends Activity {
     private static final int ROW1_TOP = 604, ROW_STEP = 224;
     // More rows push the grid up, but never into the clock: it starts this far below it. With a second
     // row the clock gets smaller, so the bottom row still fits on screen.
-    private static final int HEADER_TOP = 96, HEADER_GAP = 64, CLOCK_BIG = 250, CLOCK_SMALL = 210;
+    private static final int HEADER_TOP = 110, HEADER_GAP = 64, CLOCK_BIG = 250, CLOCK_SMALL = 210;
     private static final int ICON_TOP = 100, ICON_BUTTON = 72, ICON_SIZE = 40, ICON_GAP = 12; // level with the greeting
     private float scale = 1f;
 
@@ -120,6 +120,7 @@ public class MainActivity extends Activity {
     private TextView greeting, sunLine, badge;
     private LinearLayout header; // greeting, clock and the line under it
     private TextClock bigClock;
+    private Pet pet; // the cat that plays on the home screen
     private String sceneKey;
     private final java.util.concurrent.ExecutorService worker = java.util.concurrent.Executors.newSingleThreadExecutor();
     private Alive.Weather weather;
@@ -223,6 +224,9 @@ public class MainActivity extends Activity {
         header.addView(info);
         refreshAlive();
         root.addView(header, at(px(MARGIN), px(HEADER_TOP), -2, -2));
+        pet = new Pet(this);
+        root.addView(pet, new FrameLayout.LayoutParams(-1, -1));
+        root.getViewTreeObserver().addOnGlobalLayoutListener(this::petFloors);
 
         moveHint = text(px(24), 0xA8FFFFFF, regular);
         moveHint.setText(Strings.t("Use the arrows to move it, then press OK"));
@@ -254,6 +258,7 @@ public class MainActivity extends Activity {
         handler.removeCallbacks(tick);
         if (accentAnim != null) accentAnim.cancel();
         worker.shutdownNow();
+        pet.stop();
         super.onDestroy();
     }
 
@@ -334,6 +339,7 @@ public class MainActivity extends Activity {
         refreshNetwork();
         handler.removeCallbacks(tick);
         tick.run();
+        pet.start();
         // Back after a while: start on the app usually opened at this time of day, if there is one.
         // A quick trip away keeps focus where it was.
         View f = getCurrentFocus();
@@ -347,6 +353,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         handler.removeCallbacks(tick);
+        pet.stop();
         awaySince = System.currentTimeMillis();
         super.onPause();
     }
@@ -383,6 +390,43 @@ public class MainActivity extends Activity {
         accentTop.setColors(new int[] {Alive.fade(color | 0xFF000000, festive ? 0.22f : 0.5f), clear});
         accentMid.setColors(new int[] {Alive.fade(color | 0xFF000000, 0.16f), clear});
         clockGradient();
+        if (pet != null) pet.setAccent(color);
+    }
+
+    // Where the cat can walk, in the page's pixels: the bottom of the screen first, then the tops of
+    // the bottom row of tiles, then the top of the clock's digits.
+    private void petFloors() {
+        if (pet == null || root.getWidth() == 0 || bigClock.getWidth() == 0) return;
+        List<Pet.Floor> list = new ArrayList<>();
+        list.add(new Pet.Floor(0, root.getWidth(), getResources().getDisplayMetrics().heightPixels - px(8)));
+        int bottom = 0;
+        for (View t : tiles) bottom = Math.max(bottom, ((View) t.getParent()).getTop());
+        for (View t : tiles) {
+            View wrap = (View) t.getParent();
+            if (wrap.getTop() == bottom && bottom > 0) list.add(new Pet.Floor(wrap.getLeft(), wrap.getLeft() + t.getWidth(), bottom));
+        }
+        android.graphics.Rect digit = new android.graphics.Rect();
+        bigClock.getPaint().getTextBounds("0", 0, 1, digit);
+        float x0 = header.getLeft() + bigClock.getLeft() + bigClock.getCompoundPaddingLeft();
+        float x1 = x0 + bigClock.getPaint().measureText(bigClock.getText().toString());
+        list.add(new Pet.Floor(x0, x1, header.getTop() + bigClock.getTop() + bigClock.getBaseline() + digit.top));
+        pet.setFloors(list, px(130));
+    }
+
+    // Any button wakes the cat, and it looks at whatever has focus once the press has moved it.
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent e) {
+        boolean handled = super.dispatchKeyEvent(e);
+        if (pet != null && e.getAction() == KeyEvent.ACTION_DOWN) {
+            View f = getCurrentFocus();
+            if (f != null) {
+                int[] at = new int[2], me = new int[2];
+                f.getLocationOnScreen(at);
+                pet.getLocationOnScreen(me);
+                pet.poke(at[0] + f.getWidth() / 2f - me[0], at[1] + f.getHeight() / 2f - me[1]);
+            } else pet.poke(pet.cx, 0);
+        }
+        return handled;
     }
 
     // The clock's digits: white at the top into a light tint of the focused app's color at the
