@@ -16,6 +16,8 @@ import android.graphics.Typeface;
 import android.os.SystemClock;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
+import android.view.ViewParent;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -30,13 +32,15 @@ import java.util.Random;
 //
 // The cat (a calico, after Vikas's) sits on the digits, swishes her tail and blinks, and every few
 // seconds does something: walks to another digit (hopping over the colon), bats at the colon so its dot
-// wobbles, grooms a paw, yawns, hops, or takes a short nap. A button press wakes her, and she looks
-// toward what you moved to.
+// wobbles, grooms a paw, yawns, hops, or takes a short nap. Now and then she jumps down onto the tops of
+// the app tiles and hops along them, from one app to the next, and later jumps back up to the clock.
+// A button press wakes her, she looks toward what you moved to, and sometimes she goes over to it.
 //
-// All of it is drawn on its own small surface by its own low-priority thread, so the home screen never
-// redraws for it and the remote stays as quick as without it.
+// All of it is drawn on its own see-through surface over the page, by its own low-priority thread, so
+// the home screen never redraws for it and the remote stays as quick as without it. The page holds the
+// clock's place with slot(), and this draws the digits wherever that slot is.
 final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
-    static final int SIT = 0, WALK = 1, YAWN = 2, HOP = 3, SLEEP = 4, WAKE = 5, BAT = 6, GROOM = 7;
+    static final int SIT = 0, WALK = 1, YAWN = 2, HOP = 3, SLEEP = 4, WAKE = 5, BAT = 6, GROOM = 7, JUMP = 8;
     private static final int FUR = 0xFF8A7F75, FUR_DARK = 0xFF5B524A, ORANGE = 0xFFD38C4F, WHITE = 0xFFF4F1EB,
             EYE = 0xFFB9D46B, PUPIL = 0xFF17151A, NOSE = 0xFFE89AA4;
 
@@ -68,6 +72,19 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
     int state = SIT;
     float x = -1;
     private float target, look, lookTo, lastDt;
+    private float speed, stride, face = 1, turn = 1; // walking: pace, paw phase, which way she faces
+    private long stoppedAt;
+
+    // Where she can stand: ledge 0 is the top of the digits, the rest are the tops of the app tiles.
+    // All of it in the clock's own coordinates; (ox, oy) is where the clock sits on this surface.
+    private volatile View[] tiles = new View[0];
+    private volatile float ox, oy;
+    private final Slot slot;
+    private int on, goal = -1, hopTo = -1;
+    private float jx, jy, jLand; // a jump: where from, and where along the landing ledge (0 to 1)
+    private long jAt;
+    private float jFor;
+    private final float[] lg = new float[3]; // left, right, top of a ledge
     private long since, nextMove, blinkAt, lookUntil, swipeAt, lastFrame;
     private int swipes;
 
@@ -107,7 +124,46 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         since = t;
         nextMove = t + 5000;
         blinkAt = t + 2000;
+        slot = new Slot(c);
         setTextSize(200);
+    }
+
+    // Holds the clock's place in the page's layout, and tells the clock where that is.
+    final class Slot extends View {
+        Slot(Context c) { super(c); }
+
+        @Override
+        protected void onMeasure(int w, int h) {
+            synchronized (lock) {
+                setMeasuredDimension(Math.round(text.measureText(time()) + pad * 2), Math.round(base + pad));
+            }
+        }
+
+        @Override
+        protected void onLayout(boolean changed, int l, int t, int r, int b) {
+            float x = 0, y = 0;
+            View v = this;
+            ViewParent page = ClockCat.this.getParent();
+            while (v != null && v != page) {
+                x += v.getLeft();
+                y += v.getTop();
+                ViewParent up = v.getParent();
+                v = up instanceof View ? (View) up : null;
+            }
+            ox = x;
+            oy = y;
+        }
+    }
+
+    View slot() { return slot; }
+
+    // The tiles she can jump onto. Call again whenever the tiles are rebuilt.
+    void setTiles(View[] views) {
+        synchronized (lock) {
+            tiles = views;
+            if (on > views.length || state == JUMP) { on = 0; x = -1; state = SIT; }
+            goal = hopTo = -1;
+        }
     }
 
     // ---- Size and layout -------------------------------------------------------------------------
@@ -125,19 +181,13 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
             now = prev = null;
             shown = "";
         }
-        requestLayout();
+        if (slot != null) slot.requestLayout();
     }
 
     float getTextSizePx() { return size; }
 
     // How far the digits start in from the view's left edge (the glow's room): line them up with this.
     int glowPad() { return Math.round(pad); }
-
-    @Override
-    protected void onMeasure(int w, int h) {
-        String t = time();
-        setMeasuredDimension(Math.round(text.measureText(t) + pad * 2), Math.round(base + pad));
-    }
 
     @Override
     protected void onSizeChanged(int w, int h, int ow, int oh) {
@@ -189,12 +239,16 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
     }
 
     // A button was pressed: wake up, and look toward lookAtX (this view's pixels) for a few seconds.
-    void poke(float lookAtX) {
+    // If she's out on the tiles, she sometimes goes over to the one that has focus.
+    void poke(float lookAtX, View focused) {
         synchronized (lock) {
             long t = SystemClock.uptimeMillis();
             if (state == SLEEP) set(WAKE, t);
-            if (x >= 0) lookTo = Math.max(-1f, Math.min(1f, (lookAtX - x) / (catH * 3)));
+            if (x >= 0) lookTo = Math.max(-1f, Math.min(1f, (lookAtX - ox - x) / (catH * 3)));
             lookUntil = t + 3000;
+            View[] ts = tiles;
+            if (on > 0 && state != SLEEP && rnd.nextFloat() < 0.45f)
+                for (int i = 0; i < ts.length; i++) if (ts[i] == focused) goal = i + 1;
         }
     }
 
@@ -210,7 +264,7 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
             String s = time();
             if (!s.equals(shown) || now == null) {
                 boolean minute = !shown.isEmpty() && !s.equals(shown);
-                if (s.length() != shown.length()) post(this::requestLayout); // e.g. 9:59 to 10:00
+                if (s.length() != shown.length()) post(slot::requestLayout); // e.g. 9:59 to 10:00
                 before = shown;
                 prev = minute ? now : null;
                 prevXs = xs;
@@ -269,7 +323,7 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         for (int i = 0; i < shown.length(); i++) {
             float l = xs[i] - pad * 0.5f, r = xs[i + 1] + pad * 0.5f;
             c.save();
-            c.clipRect(l, 0, r, getHeight());
+            c.clipRect(l, 0, r, base + pad);
             if (shown.charAt(i) == before.charAt(i)) c.drawBitmap(now, 0, 0, null);
             else {
                 blit.setAlpha(Math.round(255 * (1 - e)));
@@ -307,11 +361,71 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         since = t;
     }
 
-    // Where the cat can stand: over the digits, never over the colon.
-    private float left() { return xs.length > 1 ? xs[0] + catH * 0.32f : 0; }
-    private float right() { return xs.length > 1 ? xs[xs.length - 1] - catH * 0.32f : 0; }
+    // Ledge i into lg: its left and right (with room for her) and its top. False if it isn't there.
+    private boolean ledge(int i) {
+        if (i == 0) {
+            if (xs.length < 2) return false;
+            lg[0] = xs[0] + catH * 0.32f;
+            lg[1] = xs[xs.length - 1] - catH * 0.32f;
+            lg[2] = capTop;
+            return true;
+        }
+        View[] ts = tiles;
+        if (i < 1 || i > ts.length) return false;
+        View v = ts[i - 1];
+        if (v == null || !v.isShown() || v.getWidth() < catH * 1.4f) return false;
+        float x0 = 0, y0 = 0;
+        View u = v;
+        ViewParent page = getParent();
+        while (u != null && u != page) {
+            x0 += u.getLeft() + u.getTranslationX();
+            y0 += u.getTop() + u.getTranslationY();
+            ViewParent up = u.getParent();
+            u = up instanceof View ? (View) up : null;
+        }
+        if (u == null) return false;
+        float w = v.getWidth(), h = v.getHeight(), sx = v.getScaleX(), sy = v.getScaleY();
+        lg[0] = x0 + w * (1 - sx) / 2 - ox + catH * 0.3f;
+        lg[1] = x0 + w * (1 + sx) / 2 - ox - catH * 0.3f;
+        lg[2] = y0 + h * (1 - sy) / 2 - oy;
+        return true;
+    }
+
+    private float left() { return ledge(on) ? lg[0] : 0; }
+    private float right() { return ledge(on) ? lg[1] : 0; }
+    private float floor() { return ledge(on) ? lg[2] : capTop; }
 
     private float digitCenter(int i) { return (xs[i] + xs[i + 1]) / 2; }
+
+    // The next ledge to jump to on the way to goal: one short hop at a time, found by a little search.
+    private int nextHop(int from, int to) {
+        int n = tiles.length + 1;
+        float[][] at = new float[n][];
+        for (int i = 0; i < n; i++) if (ledge(i)) at[i] = lg.clone();
+        if (at[from] == null || at[to] == null) return -1;
+        int[] back = new int[n];
+        java.util.Arrays.fill(back, -2);
+        back[from] = -1;
+        int[] queue = new int[n];
+        int head = 0, tail = 0;
+        queue[tail++] = from;
+        while (head < tail) {
+            int i = queue[head++];
+            if (i == to) break;
+            for (int j = 0; j < n; j++) {
+                if (back[j] != -2 || at[j] == null) continue;
+                float gap = Math.max(0, Math.max(at[j][0] - at[i][1], at[i][0] - at[j][1]));
+                if (gap < catH * 2.6f && Math.abs(at[j][2] - at[i][2]) < catH * 3.4f) {
+                    back[j] = i;
+                    queue[tail++] = j;
+                }
+            }
+        }
+        if (back[to] == -2) return -1;
+        int j = to;
+        while (back[j] != from) j = back[j];
+        return j;
+    }
 
     void frame(Canvas c) {
         long t = SystemClock.uptimeMillis();
@@ -320,6 +434,7 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         lastDt = dt;
         digits(t);
         if (now == null) return;
+        c.translate(ox, oy);
         drawDigits(c, t);
         drawColon(c, t, dt);
         think(t, dt);
@@ -328,23 +443,48 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
 
     private void think(long t, float dt) {
         if (xs.length < 2) return;
-        if (x < 0) x = digitCenter(shown.length() - 1);
+        if (x < 0) { on = 0; x = digitCenter(shown.length() - 1); }
+        if (on > 0 && !ledge(on) && state != JUMP) { on = 0; x = digitCenter(shown.length() - 1); set(SIT, t); }
         float l = left(), r = right();
         if (t > lookUntil) lookTo = 0;
         look += (lookTo - look) * Math.min(1f, dt * 6);
         float p = (t - since) / 1000f;
         switch (state) {
             case SIT:
-                if (x < l || x > r) { target = Math.max(l, Math.min(r, x)); set(WALK, t); break; }
+                if (x < l || x > r) { target = Math.max(l, Math.min(r, x)); speed = 0; set(WALK, t); break; }
+                if (goal >= 0 && goal != on) { if (t - stoppedAt > 350) hop(t); break; }
+                goal = -1;
                 if (t > nextMove) choose(t);
                 break;
             case WALK: {
-                float step = catH * 1.2f * dt;
-                if (Math.abs(target - x) <= step) {
+                // Speed up from a standstill, slow down on arrival, and step in time with the distance.
+                float gap = Math.abs(target - x);
+                float want = catH * 1.25f * Math.min(1f, gap / (catH * 0.5f) + 0.25f);
+                speed += (want - speed) * Math.min(1f, dt * 5);
+                float step = speed * dt;
+                face = Math.signum(target - x);
+                if (gap <= step) {
                     x = target;
-                    if (swipes > 0) { set(BAT, t); swipeAt = t + 150; } // walked over to bat the colon
+                    speed = 0;
+                    stoppedAt = t;
+                    if (hopTo >= 0) jump(t);
+                    else if (swipes > 0) { set(BAT, t); swipeAt = t + 150; } // walked over to bat the colon
                     else set(SIT, t);
-                } else x += Math.signum(target - x) * step;
+                } else {
+                    x += face * step;
+                    stride += step / (catH * 0.32f) * (float) Math.PI;
+                }
+                break;
+            }
+            case JUMP: {
+                if (p > 0.16f + jFor) { // landed
+                    on = hopTo;
+                    hopTo = -1;
+                    if (ledge(on)) x = lg[0] + (lg[1] - lg[0]) * jLand;
+                    stoppedAt = t;
+                    set(SIT, t);
+                    nextMove = t + (goal >= 0 && goal != on ? 500 : 2500 + rnd.nextInt(3000));
+                }
                 break;
             }
             case BAT:
@@ -363,7 +503,39 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
             case SLEEP: if (p > napFor) set(WAKE, t); break;
             case WAKE: if (p > 1.2f) { set(SIT, t); nextMove = t + 2500; } break;
         }
+        if (state == BAT) face = Math.signum(colonX - x);
+        turn += (face - turn) * Math.min(1f, dt * 9); // turns round smoothly instead of flipping
         if (t > blinkAt + 150) blinkAt = t + 2200 + rnd.nextInt(3500);
+    }
+
+    // On the way to goal: walk to the edge nearest the next ledge, then jump.
+    private void hop(long t) {
+        int n = nextHop(on, goal);
+        if (n < 0) { goal = -1; return; }
+        if (!ledge(n)) { goal = -1; return; }
+        float nl = lg[0], nr = lg[1];
+        float land = Math.max(nl, Math.min(nr, x));
+        if (land == nl && nr > nl) land = Math.min(nr, nl + catH * 0.2f);
+        if (land == nr && nr > nl) land = Math.max(nl, nr - catH * 0.2f);
+        jLand = nr > nl ? (land - nl) / (nr - nl) : 0.5f;
+        ledge(on);
+        float off = Math.max(lg[0], Math.min(lg[1], land));
+        hopTo = n;
+        swipes = 0;
+        if (Math.abs(off - x) > catH * 0.1f) { target = off; speed = 0; set(WALK, t); }
+        else jump(t);
+    }
+
+    private void jump(long t) {
+        jx = x;
+        jy = floor();
+        if (!ledge(hopTo)) { hopTo = -1; set(SIT, t); return; }
+        float tx = lg[0] + (lg[1] - lg[0]) * jLand;
+        face = tx == x ? face : Math.signum(tx - x);
+        float d = (float) Math.hypot(tx - x, lg[2] - jy);
+        jFor = 0.36f + d / (catH * 9f);
+        jAt = t;
+        set(JUMP, t);
     }
 
     private float napFor;
@@ -374,16 +546,30 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         boolean night = hour >= 23 || hour < 6;
         float r = rnd.nextFloat();
         if (r < (night ? 0.35f : 0.1f)) { napFor = 20 + rnd.nextInt(night ? 100 : 25); set(SLEEP, t); return; }
+        int n = tiles.length;
+        r = rnd.nextFloat();
+        if (on > 0) { // out on the tiles
+            if (r < 0.4f) { // over to another app, often the next one along
+                int g = rnd.nextFloat() < 0.6f ? on + (rnd.nextBoolean() ? 1 : -1) : 1 + rnd.nextInt(n);
+                if (g >= 1 && g <= n && g != on) goal = g;
+            } else if (r < 0.62f) goal = 0; // back up to the clock
+            else if (r < 0.8f) set(GROOM, t);
+            else if (r < 0.92f) set(YAWN, t);
+            else set(HOP, t);
+            return;
+        }
+        if (r < 0.22f && n > 0) { goal = 1 + rnd.nextInt(n); return; } // down onto the apps
         r = rnd.nextFloat();
         if (r < 0.38f) { // to another digit
             int i;
             do i = rnd.nextInt(shown.length()); while (shown.charAt(i) == ':');
             target = Math.max(left(), Math.min(right(), digitCenter(i)));
-            if (Math.abs(target - x) > catH * 0.2f) { swipes = 0; set(WALK, t); }
+            if (Math.abs(target - x) > catH * 0.2f) { swipes = 0; speed = 0; set(WALK, t); }
         } else if (r < 0.6f && colonX > 0) { // go and bat the colon
             float side = x < colonX ? -1 : 1;
             target = Math.max(left(), Math.min(right(), colonX + side * catH * 0.62f));
             swipes = 3;
+            speed = 0;
             set(WALK, t);
         } else if (r < 0.75f) set(GROOM, t);
         else if (r < 0.88f) set(YAWN, t);
@@ -393,24 +579,37 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
     private void drawCat(Canvas c, long t) {
         if (x < 0) return;
         float s = catH, p = (t - since) / 1000f, time = t / 1000f;
-        float floor = capTop;
+        float floor = floor(), cx = x;
         float lift = 0;
+        boolean air = false;
         if (state == HOP) lift = (float) Math.sin(Math.PI * Math.min(1f, p / 0.6f)) * 0.3f;
-        if (state == WALK && colonX > 0) { // hop over the colon
+        if (state == WALK && on == 0 && colonX > 0) { // hop over the colon
             float a = colonX - s * 0.45f, b = colonX + s * 0.45f;
             if (x > a && x < b) lift = (float) Math.sin(Math.PI * (x - a) / (b - a)) * 0.32f;
         }
-        // A soft shadow on the digits under her.
-        float sh = 1 - lift * 1.5f;
-        fill.setShader(new RadialGradient(x, floor, s * 0.42f * sh, 0x66000000, 0, Shader.TileMode.CLAMP));
-        c.save();
-        c.scale(1, 0.16f, x, floor);
-        c.drawCircle(x, floor, s * 0.42f * sh, fill);
-        c.restore();
-        fill.setShader(null);
+        if (state == JUMP && p > 0.16f) { // in the air: an arc from the takeoff to the landing ledge
+            float k = Math.min(1f, (p - 0.16f) / jFor);
+            float e = k * k * (3 - 2 * k);
+            float tx = jx, ty = jy;
+            if (ledge(hopTo)) { tx = lg[0] + (lg[1] - lg[0]) * jLand; ty = lg[2]; }
+            float peak = Math.min(jy, ty) - s * (0.45f + Math.abs(tx - jx) / (s * 12));
+            float cy = 2 * peak - (jy + ty) / 2;
+            cx = jx + (tx - jx) * e;
+            floor = (1 - k) * (1 - k) * jy + 2 * k * (1 - k) * cy + k * k * ty;
+            air = true;
+        }
+        if (!air) { // a soft shadow under her
+            float sh = 1 - lift * 1.5f;
+            fill.setShader(new RadialGradient(cx, floor, s * 0.42f * sh, 0x66000000, 0, Shader.TileMode.CLAMP));
+            c.save();
+            c.scale(1, 0.16f, cx, floor);
+            c.drawCircle(cx, floor, s * 0.42f * sh, fill);
+            c.restore();
+            fill.setShader(null);
+        }
 
         c.save();
-        c.translate(x, floor - lift * s);
+        c.translate(cx, floor - lift * s);
         c.scale(s, s); // from here on, 1 = her height sitting; y goes up as it gets negative
         if (state == SLEEP) asleep(c, time, p);
         else sitting(c, t, time, p);
@@ -422,14 +621,25 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         boolean walk = state == WALK;
         float stretch = state == WAKE ? (float) Math.sin(Math.PI * Math.min(1f, p / 1.2f)) : 0;
         float breathe = 1 + 0.012f * (float) Math.sin(time * 2.2f);
-        float bob = walk ? Math.abs((float) Math.sin(time * 10)) * 0.025f : 0;
+        float pace = walk ? Math.min(1f, speed / (catH * 1.25f)) : 0;
+        boolean leap = state == JUMP;
+        float crouch = leap && p < 0.16f ? Math.min(1f, p / 0.1f) : 0; // gathers herself, then springs
+        boolean air = leap && p >= 0.16f;
+        float bob = Math.abs((float) Math.sin(stride)) * 0.03f * pace;
+        float settle = 0; // a little squash as she stops
+        long stopped = t - stoppedAt;
+        if (!walk && stopped < 320) settle = (float) Math.sin(Math.PI * stopped / 320f) * 0.05f;
+        // Facing: her tail trails behind her. Seen side-on she narrows as she turns round.
+        float mirror = turn >= 0 ? -1 : 1;
+        float sx = mirror * (0.55f + 0.45f * Math.abs(turn));
         c.save();
         c.translate(0, -bob);
-        c.scale(1 + stretch * 0.12f, (1 - stretch * 0.1f) * breathe, 0, 0);
-        if (walk) c.rotate(Math.signum(target - x) * 3, 0, 0);
+        c.scale(sx * (1 + stretch * 0.12f + settle + crouch * 0.08f),
+                (1 - stretch * 0.1f - settle - crouch * 0.14f + (air ? 0.06f : 0)) * breathe, 0, 0);
+        c.rotate(-pace * 5, 0, 0); // leans into the walk
 
         // Tail: a curl that sways, banded, with a dark tip.
-        float sway = (float) Math.sin(time * (walk ? 6 : 1.6f)) * (walk ? 0.08f : 0.13f);
+        float sway = air ? -0.14f : walk ? (float) Math.sin(stride * 0.5f) * 0.07f - pace * 0.08f : (float) Math.sin(time * 1.6f) * 0.13f;
         path.reset();
         path.moveTo(0.18f, -0.05f);
         path.cubicTo(0.44f, -0.02f, 0.52f + sway * 0.3f, -0.26f, 0.41f + sway * 0.7f, -0.46f + Math.abs(sway) * 0.1f);
@@ -463,17 +673,19 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         rim(c);
 
         // Front paws: stepping while she walks, one up to swipe or to groom.
-        float lp = walk ? Math.max(0, (float) Math.sin(time * 10)) * 0.05f : 0;
-        float rp = walk ? Math.max(0, -(float) Math.sin(time * 10)) * 0.05f : 0;
+        float lp = Math.max(0, (float) Math.sin(stride)) * 0.06f * pace;
+        float rp = Math.max(0, -(float) Math.sin(stride)) * 0.06f * pace;
+        float lf = (float) Math.cos(stride) * 0.03f * pace; // paws reach forward and back too
+        if (air) { lp = rp = 0.07f; lf = 0; }
         float swipe = 0;
         int swipeSide = 0;
         if (state == BAT) {
             long sw = t - swipeAt;
             if (sw >= 0 && sw < 360) swipe = (float) Math.sin(Math.PI * sw / 360f);
-            swipeSide = colonX > x ? 1 : -1;
+            swipeSide = (colonX > x ? 1 : -1) * (int) mirror;
         }
         float groom = state == GROOM ? (float) Math.min(1, Math.sin(Math.PI * Math.min(1f, p / 2.4f)) * 1.6f) : 0;
-        float lx = -0.11f, ly = -0.025f - lp, rx = 0.11f, ry = -0.025f - rp;
+        float lx = -0.11f - lf, ly = -0.025f - lp, rx = 0.11f + lf, ry = -0.025f - rp;
         if (swipeSide < 0) { lx -= swipe * 0.16f; ly -= swipe * 0.2f; }
         if (swipeSide > 0) { rx += swipe * 0.16f; ry -= swipe * 0.2f; }
         if (groom > 0) { rx -= groom * 0.08f; ry -= groom * 0.48f; }
@@ -485,7 +697,7 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         // Head: tilts toward where she's looking; back for a yawn; down to lick a paw.
         boolean yawn = state == YAWN;
         float y = yawn ? (float) Math.sin(Math.PI * Math.min(1f, p / 1.6f)) : 0;
-        float lookAt = state == BAT ? (colonX > x ? 0.8f : -0.8f) : look;
+        float lookAt = leap ? -0.6f : walk ? -0.7f * pace : state == BAT ? -0.8f : look * mirror; // in her own facing
         c.save();
         c.translate(0, -0.66f - y * 0.02f + groom * 0.03f);
         c.rotate(lookAt * 8 - y * 4 + groom * 10);
@@ -625,9 +837,9 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         c.drawPath(path, line);
     }
 
-    // A thin edge in the app's color, so she stands out against the sky.
+    // A thin dark outline, so she reads cleanly on any sky.
     private void rim(Canvas c) {
-        line.setColor(Alive.fade(accent | 0xFF000000, 0.5f));
+        line.setColor(0xB3352E29);
         line.setStrokeWidth(0.012f);
         c.drawPath(path, line);
     }
