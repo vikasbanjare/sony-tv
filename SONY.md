@@ -63,7 +63,8 @@ adb shell am start -n com.ansub.tvhome/.MainActivity --es name Vikas --es place 
 
 ## Speed it up
 
-[`sony-bravia.txt`](sony-bravia.txt) turns off Sony's promos, demos and other extras, and turns off animations.
+[`sony-bravia.txt`](sony-bravia.txt) turns off Sony's promos, demos and other extras.
+It leaves animations on: with them off, Apple TV kept stalling on this TV.
 Read it first and delete any line for an app you use, then:
 
 ```sh

@@ -22,7 +22,4 @@ off com.google.android.play.games
 # Google TV's screensaver uses about 200 MB. Leave it on if your TV is OLED (it helps prevent burn-in).
 # off com.google.android.apps.tv.dreamx
 
-# No animations: menus react to the remote straight away
-global window_animation_scale 0
-global transition_animation_scale 0
-global animator_duration_scale 0
+# Animations stay on: with them off, Apple TV kept stalling on this TV.
