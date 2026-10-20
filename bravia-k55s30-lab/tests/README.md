@@ -9,6 +9,18 @@ Copy the folder to a USB stick (exFAT) and play it in the TV's **Media Player**.
 TV's own processing, the same path Netflix and YouTube go through. Play the same files from the
 Mac with mpv to test the HDMI path.
 
+Getting them to the TV, either way:
+
+- **USB stick.** macOS formats exFAT itself: Disk Utility > the stick > Erase > Format **ExFAT**,
+  Scheme **Master Boot Record**. Then drag `tests/patterns` onto it.
+- **Over Wi-Fi, no stick.** Copy them into the TV's own Movies folder (about 450 MB, check free space first):
+  ```sh
+  adb shell df -h /sdcard
+  adb push tests/patterns /sdcard/Movies/k55-patterns
+  ```
+  Open them in the TV's **Media Player** app (Movies > k55-patterns). Delete them when done:
+  `adb shell rm -r /sdcard/Movies/k55-patterns`.
+
 | File | What it shows | Correct result |
 |---|---|---|
 | `sdr-black-clipping.mp4` | 20 bars, code 12 to 31 left to right, on a code-16 background | Bars 1–5 (12–16) invisible. Bar 6 (17) just visible, bars after it each a little lighter |

@@ -91,4 +91,5 @@ for f in "$OUT"/audio-*.wav; do
 done
 ls "$OUT"/audio-*
 
-echo "Done. Copy $OUT to a USB stick (exFAT) and open it in the TV's Media Player."
+echo "Done. Put $OUT on the TV (USB stick formatted exFAT, or: adb push $OUT /sdcard/Movies/k55-patterns)"
+echo "and open it in the TV's Media Player. tests/README.md has the steps."

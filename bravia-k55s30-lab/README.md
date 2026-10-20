@@ -58,7 +58,7 @@ It uses port 5555 like the rest of the repo. If you use Developer options > Wire
 `adb pair <TV_IP>:<PAIRING_PORT>` and pass the port it shows: `sh scripts/adb-diagnostics.sh <TV_IP>:<PORT>`.
 
 **4. Baseline.** Fill in [`baselines/baseline.md`](baselines/baseline.md) and photograph every menu page.
-Make the clips (`sh scripts/make-patterns.sh`), copy `tests/patterns/` to a USB stick and score them as they are.
+Make the clips (`sh scripts/make-patterns.sh`), put `tests/patterns/` on the TV (USB stick, or `adb push` over Wi-Fi, see `tests/README.md`) and score them as they are.
 
 **5. Picture and sound, one change at a time.** Work down `tests/tests.csv` (P01–P30) as
 [`tests/README.md`](tests/README.md) describes. Log each with `sh scripts/log-experiment.sh`; revert anything worse at once.
