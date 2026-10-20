@@ -186,6 +186,7 @@ public class MainActivity extends Activity {
         bigClock.setLetterSpacing(-0.035f);
         bigClock.setFontFeatureSettings("tnum");
         bigClock.setIncludeFontPadding(false);
+        bigClock.setLayerType(View.LAYER_TYPE_HARDWARE, null); // the glow is a blur: drawn once, then reused
         bigClock.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> { if (b - t != ob - ot) clockGradient(); });
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, -2);
         cp.leftMargin = px(-12); // thin digits carry their own side space
@@ -225,7 +226,7 @@ public class MainActivity extends Activity {
         refreshAlive();
         root.addView(header, at(px(MARGIN), px(HEADER_TOP), -2, -2));
         pet = new Pet(this);
-        root.addView(pet, new FrameLayout.LayoutParams(-1, -1));
+        root.addView(pet, new FrameLayout.LayoutParams(-1, getResources().getDisplayMetrics().heightPixels));
         root.getViewTreeObserver().addOnGlobalLayoutListener(this::petFloors);
 
         moveHint = text(px(24), 0xA8FFFFFF, regular);

@@ -8,10 +8,11 @@ import android.graphics.Shader;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
-import android.os.Handler;
-import android.os.Looper;
 import android.os.SystemClock;
-import android.view.View;
+import android.graphics.PixelFormat;
+import android.graphics.PorterDuff;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,11 +26,16 @@ import java.util.Random;
 // The ball rolls, slows, falls off ledges and bounces. The cat walks along floors (the bottom of the
 // screen, the tops of the bottom row of tiles, the top of the clock) and jumps between them.
 //
-// What it does: chases the ball and bats it, sometimes crouches and pounces, sits and looks around,
-// wanders, and curls up to sleep when the remote has been quiet a while. A button press wakes it, and
-// it looks at what you moved to. It runs on its own timer (it still moves when the TV's animations
+// What it does, all on its own: chases the ball and bats it, sometimes crouches and pounces, sits for
+// a moment, wanders the screen, and now and then takes a short nap. A button press wakes it, and it
+// looks at what you moved to. It runs on its own timer (it still moves when the TV's animations
 // are off) and stops whenever the home screen isn't showing.
-final class Pet extends View {
+//
+// It draws on its own surface, on its own thread, at half resolution (the display scales it up). So
+// the home screen itself only redraws when the remote is used, just as without the cat, and the cat
+// never makes the TV wait.
+final class Pet extends SurfaceView implements SurfaceHolder.Callback {
+    private static final float SCALE = 0.5f; // drawn at half resolution
 
     // A floor it can stand on: from x0 to x1 at height y, in this view's pixels.
     static final class Floor {
@@ -42,7 +48,6 @@ final class Pet extends View {
     // paws, tall ears, yellow-green eyes, and a dark banded tail.
     private static final int FUR = 0xFF8F8173, FUR_DARK = 0xFF3F362F, FUR_FAR = 0xFF6E6257, CREAM = 0xFFF3F0EA,
             ORANGE = 0xFFC98A4E, PINK = 0xFFE7A3A3, EYE = 0xFFC2CB6E, PUPIL = 0xFF1C1A1F;
-    private static final long NAP_AFTER = 150 * 1000; // quiet remote this long: time for a nap
 
     // What it's doing right now, and what it's up to overall.
     private static final int STAND = 0, SIT = 1, LIE = 2, MOVE = 3, JUMP = 4, BAT = 5, CROUCH = 6;
@@ -50,11 +55,14 @@ final class Pet extends View {
 
     private final List<Floor> floors = new ArrayList<>();
     private final Random rnd = new Random();
-    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Object lock = new Object(); // the cat's state, shared by the UI and drawing threads
+    private Thread thread;
+    private volatile boolean surfaceReady;
+    private volatile int viewW, viewH;
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG), line = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path path = new Path();
     private final RectF oval = new RectF();
-    private boolean running;
+    private volatile boolean running; // wanted: the home screen is showing
     private float L; // its body length in pixels; everything about it is in fractions of this
 
     // The cat.
@@ -84,11 +92,27 @@ final class Pet extends View {
     private Floor ballFloor;
     private int accent = Alive.NEUTRAL;
 
-    private final Runnable tick = new Runnable() {
-        @Override public void run() {
-            if (!running) return;
-            invalidate();
-            handler.postDelayed(this, mode == LIE ? 100 : 33);
+    // The drawing thread: clear, draw a frame, show it, about 30 times a second (10 while it naps).
+    private final Runnable loop = () -> {
+        SurfaceHolder h = getHolder();
+        while (running && surfaceReady) {
+            long t0 = SystemClock.uptimeMillis();
+            Canvas c = null;
+            try {
+                c = android.os.Build.VERSION.SDK_INT >= 26 ? h.lockHardwareCanvas() : h.lockCanvas();
+                if (c != null) {
+                    c.drawColor(0, PorterDuff.Mode.CLEAR);
+                    c.save();
+                    c.scale(SCALE, SCALE);
+                    synchronized (lock) { frame(c); }
+                    c.restore();
+                }
+            } catch (Exception ignored) {
+            } finally {
+                if (c != null) try { h.unlockCanvasAndPost(c); } catch (Exception ignored) {}
+            }
+            long wait = (mode == LIE ? 100 : 33) - (SystemClock.uptimeMillis() - t0);
+            if (wait > 0) try { Thread.sleep(wait); } catch (InterruptedException e) { return; }
         }
     };
 
@@ -102,6 +126,9 @@ final class Pet extends View {
 
     Pet(Context c) {
         super(c);
+        setZOrderOnTop(true); // above the home screen, still below menus and dialogs
+        getHolder().setFormat(PixelFormat.TRANSLUCENT);
+        getHolder().addCallback(this);
         Random r = new Random(42);
         for (int i = 0; i < FUR_N; i++) {
             furT[i] = r.nextFloat();
@@ -121,21 +148,52 @@ final class Pet extends View {
     }
 
     void start() {
-        if (running) return;
         running = true;
-        lastTick = 0;
-        handler.post(tick);
+        go();
     }
 
     void stop() {
         running = false;
-        handler.removeCallbacks(tick);
+        end();
     }
 
-    void setAccent(int color) { accent = color; }
+    private void end() {
+        Thread t = thread;
+        thread = null;
+        if (t != null) {
+            t.interrupt();
+            try { t.join(200); } catch (InterruptedException ignored) {}
+        }
+    }
+
+    private void go() {
+        if (!running || !surfaceReady || thread != null && thread.isAlive()) return;
+        lastTick = 0;
+        thread = new Thread(loop, "pet");
+        thread.setPriority(Thread.MIN_PRIORITY); // the remote always comes first
+        thread.start();
+    }
+
+    @Override public void surfaceCreated(SurfaceHolder h) { surfaceReady = true; go(); }
+    @Override public void surfaceChanged(SurfaceHolder h, int format, int w, int hh) {}
+    @Override public void surfaceDestroyed(SurfaceHolder h) { surfaceReady = false; end(); } // starts again with the surface
+
+    @Override
+    protected void onSizeChanged(int w, int h, int ow, int oh) {
+        super.onSizeChanged(w, h, ow, oh);
+        viewW = w;
+        viewH = h;
+        if (w > 0 && h > 0) getHolder().setFixedSize(Math.max(1, Math.round(w * SCALE)), Math.max(1, Math.round(h * SCALE)));
+    }
+
+    void setAccent(int color) { synchronized (lock) { accent = color; } }
 
     // The floors, from the screen's layout. The first is the ground along the bottom of the screen.
     void setFloors(List<Floor> list, float bodyLength) {
+        synchronized (lock) { setFloorsLocked(list, bodyLength); }
+    }
+
+    private void setFloorsLocked(List<Floor> list, float bodyLength) {
         L = bodyLength;
         boolean same = list.size() == floors.size();
         for (int i = 0; same && i < list.size(); i++) same = list.get(i).same(floors.get(i));
@@ -161,12 +219,16 @@ final class Pet extends View {
 
     // The remote was used: wake up, and look at lookAt (this view's pixels) for a few seconds.
     void poke(float lookAtX, float lookAtY) {
+        synchronized (lock) { pokeLocked(lookAtX, lookAtY); }
+    }
+
+    private void pokeLocked(float lookAtX, float lookAtY) {
         long now = SystemClock.uptimeMillis();
         lastPoke = now;
         lookX = lookAtX;
         lookY = lookAtY;
         lookUntil = now + 3000;
-        if (goal == SLEEP) setGoal(REST, now, 5000);
+        if (goal == SLEEP) setGoal(REST, now, 1500);
     }
 
     private float ballR() { return L * 0.11f; }
@@ -196,8 +258,7 @@ final class Pet extends View {
 
     // ---- Each frame ------------------------------------------------------------------------------
 
-    @Override
-    protected void onDraw(Canvas c) {
+    void frame(Canvas c) {
         if (floors.isEmpty() || L <= 0 || cx < 0) return;
         long now = SystemClock.uptimeMillis();
         float dt = lastTick == 0 ? 0.033f : Math.min(0.1f, (now - lastTick) / 1000f);
@@ -232,33 +293,35 @@ final class Pet extends View {
                 }
             }
         }
-        int w = getWidth();
+        int w = viewW;
         if (bx < r) { bx = r; bvx = Math.abs(bvx) * 0.6f; }
         if (w > 0 && bx > w - r) { bx = w - r; bvx = -Math.abs(bvx) * 0.6f; }
-        if (getHeight() > 0 && by > getHeight()) { bx = floors.get(0).x0 + w / 2f; by = floors.get(0).y - r; ballFloor = floors.get(0); bvx = 0; }
+        if (viewH > 0 && by > viewH) { bx = floors.get(0).x0 + w / 2f; by = floors.get(0).y - r; ballFloor = floors.get(0); bvx = 0; }
         spin += bvx * dt / r;
     }
 
     private void think(long now) {
         if (mode == JUMP) return; // in the air: nothing to decide until it lands
-        if (goal != SLEEP && now - lastPoke > NAP_AFTER) setGoal(SLEEP, now, Long.MAX_VALUE);
         boolean done = now - goalAt > goalFor;
         switch (goal) {
-            case SLEEP:
+            case SLEEP: // a short nap, then up again
                 vx = 0;
                 setMode(LIE, now);
+                if (done) setGoal(REST, now, 1500);
                 return;
             case REST:
                 vx = 0;
                 if (mode == MOVE || mode == BAT || mode == CROUCH || mode == LIE) setMode(STAND, now);
                 if (mode == STAND && now - modeAt > 900) setMode(SIT, now);
-                if (done) {
+                if (done) { // always off to do something: mostly play, sometimes explore, now and then a nap
                     float r = rnd.nextFloat();
-                    setGoal(r < 0.55f ? PLAY : r < 0.85f ? WANDER : REST, now, r < 0.85f ? 60000 : 6000 + rnd.nextInt(8000));
+                    if (r < 0.6f) setGoal(PLAY, now, 60000);
+                    else if (r < 0.9f) setGoal(WANDER, now, 30000);
+                    else setGoal(SLEEP, now, 20000 + rnd.nextInt(25000));
                 }
                 return;
             case WANDER:
-                if (goTo(jumpTo, targetX, now, false)) setGoal(REST, now, 6000 + rnd.nextInt(9000));
+                if (goTo(jumpTo, targetX, now, false)) setGoal(REST, now, 2000 + rnd.nextInt(3000));
                 else if (done) setGoal(REST, now, 4000);
                 return;
             case PLAY:
@@ -284,7 +347,7 @@ final class Pet extends View {
         vx = 0;
         dir = side;
         if (Math.abs(bvx) > L * 0.6f) { setMode(STAND, now); return; } // let it roll
-        if (bats >= batsWanted) { setGoal(REST, now, 6000 + rnd.nextInt(8000)); return; }
+        if (bats >= batsWanted) { setGoal(REST, now, 2500 + rnd.nextInt(3000)); return; }
         bats++;
         hit = false;
         setMode(rnd.nextFloat() < 0.25f ? CROUCH : BAT, now);
