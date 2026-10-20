@@ -3,6 +3,7 @@
 #
 #   sh scripts/play-on-tv.sh <TV_IP> sdr-black-clipping      (name from tests/patterns, with or without .mp4)
 #   sh scripts/play-on-tv.sh <TV_IP> list                    what's on the TV
+#   APP=sony sh scripts/play-on-tv.sh <TV_IP> <clip>          force Sony's Media Player (APP=mx: MX Player)
 #
 # The clip opens on the TV by itself. If the TV asks which app to use, pick Media Player
 # (or MX Player) with the remote. Press Back on the remote to stop it.
@@ -39,5 +40,12 @@ echo "Opening $CLIP on the TV…"
 # ("delivered to currently running top-most instance") and keep showing the old, finished clip.
 adb -s "$TV" shell input keyevent KEYCODE_HOME
 sleep 1
-adb -s "$TV" shell am start -a android.intent.action.VIEW -f 0x10008000 -d "file://$DIR/$CLIP" -t video/mp4 >/dev/null
+case "${APP:-}" in
+  sony) PKG="-p com.mediatek.wwtv.mediaplayer" ;;
+  mx)   PKG="-p com.mxtech.videoplayer.television" ;;
+  "")   PKG= ;;
+  *)    PKG="-p $APP" ;;
+esac
+# shellcheck disable=SC2086 # PKG is either empty or two words
+adb -s "$TV" shell am start -a android.intent.action.VIEW -f 0x10008000 $PKG -d "file://$DIR/$CLIP" -t video/mp4 >/dev/null
 echo "It should be playing now. Press Back on the remote to stop."
