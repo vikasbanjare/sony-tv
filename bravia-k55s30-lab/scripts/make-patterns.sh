@@ -69,10 +69,12 @@ pan() { # name, size, rate, scroll speed, level
   $FF -f lavfi -i "testsrc2=s=$2:r=$3:d=0.1,loop=loop=-1:size=1,scroll=horizontal=$4,format=yuv420p" -t "$MDUR" $MOTION -level:v "$5" "$OUT/$1.mp4"
   echo "  $OUT/$1.mp4"
 }
-pan sdr-motion-pan-50p "${W}x$H" 50 0.0015 5.2
-pan sdr-motion-pan-24p "${W}x$H" 24000/1001 0.003 5.1
-pan sdr-motion-pan-24p-1080 1920x1080 24000/1001 0.003 4.1
-pan sdr-motion-pan-50p-1080 1920x1080 50 0.0015 4.2
+# Speeds are a whole number of pixels per frame (8 or 16 at 4K, 4 or 8 at 1080p): the same width
+# fraction at both sizes, so every frame moves exactly as far as the last and any unevenness is the TV's.
+pan sdr-motion-pan-50p "${W}x$H" 50 8/3840 5.2
+pan sdr-motion-pan-24p "${W}x$H" 24000/1001 16/3840 5.1
+pan sdr-motion-pan-24p-1080 1920x1080 24000/1001 8/1920 4.1
+pan sdr-motion-pan-50p-1080 1920x1080 50 4/1920 4.2
 [ "$ONLY" = motion ] && { echo "Done (motion clips only)."; exit 0; }
 
 echo "HDR10 picture patterns (BT.2020, PQ, MaxCLL 1000)"
