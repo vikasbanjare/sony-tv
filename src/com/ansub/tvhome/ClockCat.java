@@ -44,15 +44,16 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
             LOUNGE = 9, DRAPE = 10;
     // Her coat, from the photo: a warm grey-tan tabby with dark stripes, apricot patches, a white
     // chest, chin and paws, green eyes, a pink nose and a dark ringed tail.
-    private static final int FUR = 0xFF9B8569, FUR_LIGHT = 0xFFBBA88B, FUR_DARK = 0xFF2F2823, STRIPE = 0xC22F2823,
-            ORANGE = 0xFFD39153, PEACH = 0xFFE3AC70, WHITE = 0xFFF4EFE6, EYE = 0xFF9DBE58, PUPIL = 0xFF17151A, NOSE = 0xFFE09598;
+    private static final int FUR = 0xFF8F7F6C, FUR_LIGHT = 0xFFBAAA95, FUR_SHADE = 0xFF5A4D42, STRIPE = 0xFF342C26,
+            ORANGE = 0xFFC9905B, PEACH = 0xFFE2B383, WHITE = 0xFFF3EEE5, EYE = 0xFF9FB24F, EYE_LIGHT = 0xFFDDE09A,
+            PUPIL = 0xFF15130F, NOSE = 0xFFD48D8A, EAR = 0xFFD9A3A0, OUTLINE = 0xCC2E2722;
 
     private final Object lock = new Object();
     private final Random rnd = new Random();
     private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG), line = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint blit = new Paint(Paint.FILTER_BITMAP_FLAG);
-    private final Path path = new Path();
+    private Path path = new Path();
     private final RectF oval = new RectF();
     private final Rect bounds = new Rect();
     private Thread thread;
@@ -740,10 +741,253 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         if (state == SLEEP) zs(c, s, floor, time);
     }
 
-    // Sitting, like the photo: side-on with her head turned to you, her tail round her front paws.
+    // ---- Her look ------------------------------------------------------------------------------
+    // Soft volumes lit from above, tapered tabby markings that fade at the edges like fur, soft
+    // apricot patches, a white bib, and the app's light catching her back so she sits in the scene.
+
+    // A soft-edged patch of colour: an apricot blotch, the white bib, a highlight.
+    private void patch(Canvas c, int color, float cx, float cy, float rx, float ry, float edge) {
+        c.save();
+        c.translate(cx, cy);
+        c.scale(rx, ry);
+        fill.setShader(new RadialGradient(0, 0, 1, new int[] {color, color, color & 0x00FFFFFF}, new float[] {0, edge, 1}, Shader.TileMode.CLAMP));
+        c.drawCircle(0, 0, 1, fill);
+        fill.setShader(null);
+        c.restore();
+    }
+
+    // A tabby band: a wide faint stroke under a narrow darker one, so it fades out at the sides.
+    private void band(Canvas c, float x0, float y0, float cx, float cy, float x1, float y1, float w, float alpha) {
+        Path keep = path;
+        path = band;
+        path.reset();
+        path.moveTo(x0, y0);
+        path.quadTo(cx, cy, x1, y1);
+        line.setColor(Alive.fade(STRIPE, alpha * 0.32f));
+        line.setStrokeWidth(w * 2.2f);
+        c.drawPath(path, line);
+        line.setColor(Alive.fade(STRIPE, alpha));
+        line.setStrokeWidth(w);
+        c.drawPath(path, line);
+        path = keep;
+    }
+    private final Path band = new Path();
+
+    // Fills the part in `path` with fur lit from above: light on top, her base colour, shadow below.
+    private void coat(Canvas c, float top, float bottom) {
+        fill.setShader(new LinearGradient(0, top, 0, bottom, new int[] {FUR_LIGHT, FUR, FUR_SHADE}, new float[] {0, 0.5f, 1}, Shader.TileMode.CLAMP));
+        c.drawPath(path, fill);
+        fill.setShader(null);
+    }
+
+    // After the markings, still clipped to the part: deepen the shadow toward the bottom.
+    private void shade(Canvas c, float top, float bottom) {
+        fill.setShader(new LinearGradient(0, top + (bottom - top) * 0.45f, 0, bottom, 0, 0x55000000, Shader.TileMode.CLAMP));
+        c.drawPath(path, fill);
+        fill.setShader(null);
+    }
+
+    // A fine outline round the part, and the app's light along its upper edge.
+    private void edge(Canvas c, float top, float bottom) {
+        line.setColor(OUTLINE);
+        line.setStrokeWidth(0.013f);
+        c.drawPath(path, line);
+        c.save();
+        c.clipRect(-3, top - 1, 3, top + (bottom - top) * 0.4f);
+        line.setColor(Alive.fade(accent | 0xFF000000, 0.5f));
+        line.setStrokeWidth(0.024f);
+        c.drawPath(path, line);
+        c.restore();
+    }
+
+    // A slim leg from (ax, ay) to the paw at (px, py): wider at the top, two faint bars, a white paw.
+    private void limb(Canvas c, float ax, float ay, float px, float py, float w, boolean near) {
+        float dx = px - ax, dy = py - ay, len = (float) Math.hypot(dx, dy);
+        if (len < 1e-4f) return;
+        float nx = -dy / len, ny = dx / len; // across the leg
+        float w0 = w, w1 = w * 0.72f;
+        path.reset();
+        path.moveTo(ax + nx * w0, ay + ny * w0);
+        path.lineTo(px + nx * w1, py + ny * w1);
+        path.quadTo(px + ny * w1 * 0.9f, py - nx * w1 * 0.9f, px - nx * w1, py - ny * w1);
+        path.lineTo(ax - nx * w0, ay - ny * w0);
+        path.close();
+        fill.setShader(new LinearGradient(ax, ay, px, py, near ? FUR : FUR_SHADE, near ? FUR_SHADE : 0xFF4A3F36, Shader.TileMode.CLAMP));
+        c.drawPath(path, fill);
+        fill.setShader(null);
+        c.save();
+        c.clipPath(path);
+        for (int i = 1; i <= 2; i++) { // two faint bars, like the rings on her legs in the photo
+            float k = i / 3.4f, lx = ax + dx * k, ly = ay + dy * k;
+            band(c, lx - nx * w0, ly - ny * w0, lx, ly + 0.008f, lx + nx * w0, ly + ny * w0, 0.016f, near ? 0.28f : 0.2f);
+        }
+        patch(c, near ? WHITE : 0xFFDCD5CA, px, py, w1 * 1.6f, w1 * 2.2f, 0.45f); // the white sock
+        c.restore();
+        line.setColor(OUTLINE);
+        line.setStrokeWidth(0.011f);
+        c.drawPath(path, line);
+    }
+
+    // Her tail along `path` (base first): thick at the base, slimmer to the tip, dark rings, black tip.
+    private void tail(Canvas c, float tx, float ty) {
+        line.setColor(OUTLINE);
+        line.setStrokeWidth(0.088f);
+        c.drawPath(path, line);
+        line.setColor(FUR);
+        line.setStrokeWidth(0.066f);
+        c.drawPath(path, line);
+        line.setColor(Alive.fade(STRIPE, 0.55f));
+        line.setStrokeWidth(0.068f);
+        line.setPathEffect(new android.graphics.DashPathEffect(new float[] {0.045f, 0.09f}, 0.03f));
+        c.drawPath(path, line);
+        line.setPathEffect(null);
+        patch(c, STRIPE, tx, ty, 0.055f, 0.055f, 0.6f);
+        line.setColor(OUTLINE);
+        line.setStrokeWidth(0.012f);
+        fill.setColor(STRIPE);
+        c.drawCircle(tx, ty, 0.04f, fill);
+    }
+
+    // Her face. `side` turns it: 0 looks straight at you, 1 is a three-quarter view toward her nose.
+    private void head(Canvas c, float open, float yawn, float lookAt, float groom, float side) {
+        float fx = -0.06f * side; // features slide toward her nose as she turns
+        c.save();
+        c.scale(1 - 0.16f * side, 1);
+        ear(c, 1, 1 - 0.2f * side, fx, FUR);
+        ear(c, -1, 1f, fx, Alive.mix(FUR, ORANGE, 0.55f));
+        path.reset(); // the skull: wide cheeks, a soft point of a chin
+        path.moveTo(0, -0.215f);
+        path.cubicTo(0.17f, -0.215f, 0.3f, -0.1f, 0.285f, 0.02f);
+        path.cubicTo(0.3f, 0.06f, 0.33f, 0.09f, 0.29f, 0.1f);   // a cheek tuft
+        path.cubicTo(0.24f, 0.19f, 0.12f, 0.24f, 0, 0.24f);
+        path.cubicTo(-0.12f, 0.24f, -0.24f, 0.19f, -0.29f, 0.1f);
+        path.cubicTo(-0.33f, 0.09f, -0.3f, 0.06f, -0.285f, 0.02f);
+        path.cubicTo(-0.3f, -0.1f, -0.17f, -0.215f, 0, -0.215f);
+        path.close();
+        fill.setShader(new RadialGradient(-0.07f, -0.1f, 0.4f, new int[] {FUR_LIGHT, FUR, FUR_SHADE}, new float[] {0, 0.55f, 1}, Shader.TileMode.CLAMP));
+        c.drawPath(path, fill);
+        fill.setShader(null);
+        c.save();
+        c.clipPath(path);
+        patch(c, ORANGE, -0.11f + fx, -0.1f, 0.13f, 0.12f, 0.45f);   // the apricot blaze over her left eye
+        patch(c, PEACH, 0.18f + fx, 0.05f, 0.1f, 0.08f, 0.4f);       // and the warm cheek
+        for (int i = -2; i <= 2; i++) // the tabby "M" on her brow
+            band(c, i * 0.05f + fx, -0.225f, i * 0.045f + fx, -0.16f, i * 0.032f + fx, -0.11f, 0.017f, 0.6f);
+        for (int sd = -1; sd <= 1; sd += 2) { // stripes from the eyes back over the cheeks
+            band(c, sd * 0.18f + fx, -0.06f, sd * 0.25f + fx, -0.09f, sd * 0.31f + fx, -0.12f, 0.015f, 0.5f);
+            band(c, sd * 0.19f + fx, 0.01f, sd * 0.26f + fx, 0.0f, sd * 0.32f + fx, 0.0f, 0.013f, 0.4f);
+        }
+        patch(c, WHITE, fx, 0.115f, 0.165f, 0.125f, 0.5f);           // white muzzle and chin
+        shade(c, -0.2f, 0.25f);
+        c.restore();
+        line.setColor(OUTLINE);
+        line.setStrokeWidth(0.013f);
+        c.drawPath(path, line);
+
+        for (int sd = -1; sd <= 1; sd += 2) { // almond eyes, outer corners lifted, green-gold
+            float ex = sd * 0.105f + fx, ey = -0.02f;
+            float ix = ex - sd * 0.07f, ox = ex + sd * 0.078f;
+            if (open < 0.3f) {
+                path.reset();
+                path.moveTo(ix, ey + 0.012f);
+                path.quadTo(ex, ey + 0.045f, ox, ey - 0.015f);
+                line.setColor(OUTLINE);
+                line.setStrokeWidth(0.016f);
+                c.drawPath(path, line);
+                continue;
+            }
+            path.reset();
+            path.moveTo(ix, ey + 0.012f);
+            path.quadTo(ex - sd * 0.01f, ey - 0.085f * open, ox, ey - 0.018f);
+            path.quadTo(ex + sd * 0.015f, ey + 0.065f * open, ix, ey + 0.012f);
+            path.close();
+            fill.setShader(new RadialGradient(ex - sd * 0.01f, ey + 0.012f, 0.085f, EYE_LIGHT, EYE, Shader.TileMode.CLAMP));
+            c.drawPath(path, fill);
+            fill.setShader(null);
+            c.save();
+            c.clipPath(path);
+            fill.setColor(PUPIL);
+            oval.set(ex + lookAt * 0.028f - 0.026f, ey - 0.052f * open, ex + lookAt * 0.028f + 0.026f, ey + 0.056f * open);
+            c.drawOval(oval, fill);
+            fill.setShader(new LinearGradient(0, ey - 0.08f, 0, ey - 0.02f, 0x33000000, 0, Shader.TileMode.CLAMP)); // the lid's shadow
+            c.drawPath(path, fill);
+            fill.setShader(null);
+            patch(c, 0xF0FFFFFF, ex - sd * 0.026f, ey - 0.03f * open, 0.018f, 0.018f, 0.5f);
+            patch(c, 0x80FFFFFF, ex + sd * 0.022f, ey + 0.03f * open, 0.009f, 0.009f, 0.5f);
+            c.restore();
+            line.setColor(OUTLINE);
+            line.setStrokeWidth(0.013f);
+            c.drawPath(path, line);
+        }
+        path.reset(); // a small pink nose
+        path.moveTo(fx - 0.03f, 0.06f);
+        path.quadTo(fx, 0.053f, fx + 0.03f, 0.06f);
+        path.quadTo(fx + 0.012f, 0.094f, fx, 0.097f);
+        path.quadTo(fx - 0.012f, 0.094f, fx - 0.03f, 0.06f);
+        path.close();
+        fill.setColor(NOSE);
+        c.drawPath(path, fill);
+        line.setColor(OUTLINE);
+        line.setStrokeWidth(0.009f);
+        c.drawPath(path, line);
+        patch(c, 0x99FFFFFF, fx - 0.01f, 0.066f, 0.009f, 0.006f, 0.5f);
+        if (yawn > 0.05f) {
+            ellipse(c, 0xFF5A1E2C, fx, 0.13f, 0.05f * yawn, 0.055f * yawn);
+            ellipse(c, NOSE, fx, 0.155f, 0.03f * yawn, 0.02f * yawn);
+        } else if (groom > 0.3f) {
+            ellipse(c, NOSE, fx + 0.015f, 0.125f, 0.018f, 0.014f); // a little tongue
+        } else {
+            path.reset();
+            path.moveTo(fx, 0.097f);
+            path.lineTo(fx, 0.115f);
+            path.moveTo(fx - 0.045f, 0.1f);
+            path.quadTo(fx - 0.025f, 0.13f, fx, 0.115f);
+            path.quadTo(fx + 0.025f, 0.13f, fx + 0.045f, 0.1f);
+            line.setColor(0x80352D27);
+            line.setStrokeWidth(0.009f);
+            c.drawPath(path, line);
+        }
+        line.setColor(0x73FFFFFF); // whiskers
+        line.setStrokeWidth(0.006f);
+        for (int sd = -1; sd <= 1; sd += 2)
+            for (int i = 0; i < 4; i++) {
+                path.reset();
+                path.moveTo(sd * 0.11f + fx, 0.07f + i * 0.012f);
+                path.quadTo(sd * 0.27f + fx, 0.045f + i * 0.03f, sd * 0.38f + fx, 0.0f + i * 0.045f);
+                c.drawPath(path, line);
+            }
+        c.restore();
+    }
+
+    private void ear(Canvas c, int s, float k, float fx, int color) {
+        float bx = s * 0.15f + fx * 0.6f, by = -0.13f;
+        path.reset();
+        path.moveTo(bx + s * 0.125f * k, by + 0.085f * k);
+        path.quadTo(bx + s * 0.125f * k, by - 0.1f * k, bx + s * 0.065f * k, by - 0.24f * k);
+        path.quadTo(bx - s * 0.015f * k, by - 0.13f * k, bx - s * 0.095f * k, by - 0.02f * k);
+        path.close();
+        fill.setShader(new LinearGradient(bx, by - 0.24f * k, bx, by + 0.08f * k, Alive.mix(color, FUR_LIGHT, 0.3f), Alive.mix(color, FUR_SHADE, 0.4f), Shader.TileMode.CLAMP));
+        c.drawPath(path, fill);
+        fill.setShader(null);
+        line.setColor(OUTLINE);
+        line.setStrokeWidth(0.013f);
+        c.drawPath(path, line);
+        float k2 = k * 0.6f; // the pink inside
+        path.reset();
+        path.moveTo(bx + s * 0.11f * k2, by + 0.07f * k2);
+        path.quadTo(bx + s * 0.11f * k2, by - 0.1f * k2, bx + s * 0.065f * k2, by - 0.24f * k2);
+        path.quadTo(bx - s * 0.01f * k2, by - 0.13f * k2, bx - s * 0.085f * k2, by - 0.02f * k2);
+        path.close();
+        fill.setShader(new LinearGradient(bx, by - 0.24f * k2, bx, by + 0.07f * k2, Alive.fade(EAR, 0.6f), Alive.fade(EAR, 0.95f), Shader.TileMode.CLAMP));
+        c.drawPath(path, fill);
+        fill.setShader(null);
+    }
+
+    // Sitting, like the photo: upright and side-on with her head turned to you, slim front legs,
+    // a big round haunch, her tail round her front paws.
     private void sitting(Canvas c, long t, float time, float p, boolean narrow) {
         float stretch = state == WAKE ? (float) Math.sin(Math.PI * Math.min(1f, p / 1.2f)) : 0;
-        float breathe = 1 + 0.012f * (float) Math.sin(time * 2.2f);
+        float breathe = 1 + 0.01f * (float) Math.sin(time * 2.2f);
         float settle = 0; // a little squash as she lands or stops
         long stopped = t - stoppedAt;
         if (stopped < 320) settle = (float) Math.sin(Math.PI * stopped / 320f) * 0.06f;
@@ -752,44 +996,38 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         c.save();
         c.scale(sx * (1 + stretch * 0.12f + settle), (1 - stretch * 0.1f - settle) * breathe, 0, 0);
 
-        // Tail: from the rump, along the floor and round the front; the tip flicks.
         float sway = (float) Math.sin(time * (narrow ? 5f : 1.6f)) * (narrow ? 0.09f : 0.05f);
-        path.reset();
-        path.moveTo(0.33f, -0.12f);
-        path.cubicTo(0.5f, 0.02f, 0.2f, 0.1f, -0.1f, 0.07f);
-        path.cubicTo(-0.25f, 0.06f, -0.34f + sway, 0.03f, -0.43f + sway * 1.6f, -0.05f + Math.abs(sway));
-        tail(c, -0.43f + sway * 1.6f, -0.05f + Math.abs(sway));
-        ellipse(c, WHITE, 0.12f, -0.025f, 0.07f, 0.04f); // a back paw peeping out
+        path.reset(); // tail: from the rump, along the floor and round the front, the tip flicking
+        path.moveTo(0.36f, -0.14f);
+        path.cubicTo(0.54f, 0.0f, 0.22f, 0.1f, -0.08f, 0.075f);
+        path.cubicTo(-0.24f, 0.06f, -0.36f + sway, 0.035f, -0.46f + sway * 1.6f, -0.05f + Math.abs(sway));
+        tail(c, -0.46f + sway * 1.6f, -0.05f + Math.abs(sway));
+        limb(c, 0.2f, -0.12f, 0.14f, -0.01f, 0.045f, false); // a back paw peeping out
 
-        // Body: the chest rises to the head at the front; a big round haunch at the back.
-        path.reset();
-        path.moveTo(-0.2f, -0.62f);
-        path.cubicTo(0.05f, -0.64f, 0.3f, -0.58f, 0.36f, -0.4f);
-        path.cubicTo(0.42f, -0.25f, 0.4f, -0.04f, 0.3f, 0f);
-        path.lineTo(-0.1f, 0f);
-        path.cubicTo(-0.22f, 0f, -0.27f, -0.3f, -0.25f, -0.45f);
-        path.cubicTo(-0.25f, -0.55f, -0.23f, -0.62f, -0.2f, -0.62f);
-        fill.setShader(new LinearGradient(0, -0.64f, 0, 0, FUR_LIGHT, FUR, Shader.TileMode.CLAMP));
-        c.drawPath(path, fill);
-        fill.setShader(null);
+        path.reset(); // body
+        path.moveTo(-0.17f, -0.67f);
+        path.cubicTo(0.02f, -0.72f, 0.27f, -0.63f, 0.36f, -0.42f);
+        path.cubicTo(0.47f, -0.25f, 0.44f, -0.04f, 0.32f, 0f);
+        path.lineTo(-0.06f, 0f);
+        path.cubicTo(-0.2f, 0f, -0.27f, -0.3f, -0.26f, -0.48f);
+        path.cubicTo(-0.26f, -0.6f, -0.22f, -0.67f, -0.17f, -0.67f);
+        path.close();
+        coat(c, -0.72f, 0f);
         c.save();
         c.clipPath(path);
-        ellipse(c, ORANGE, 0.16f, -0.53f, 0.14f, 0.08f);
-        ellipse(c, ORANGE, 0.33f, -0.24f, 0.1f, 0.14f);
-        ellipse(c, PEACH, 0.02f, -0.3f, 0.07f, 0.09f);
-        ellipse(c, PEACH, 0.22f, -0.08f, 0.09f, 0.06f);
-        ellipse(c, WHITE, -0.17f, -0.42f, 0.1f, 0.2f); // her white bib
-        line.setColor(STRIPE); // tabby bands over the back and haunch
-        line.setStrokeWidth(0.035f);
-        for (int i = 0; i < 4; i++) {
-            float bx = 0.02f + i * 0.1f;
-            path.reset();
-            path.moveTo(bx, -0.6f);
-            path.quadTo(bx + 0.14f, -0.35f, bx + 0.08f, -0.06f);
-            c.drawPath(path, line);
+        patch(c, ORANGE, 0.12f, -0.56f, 0.15f, 0.1f, 0.4f);
+        patch(c, ORANGE, 0.33f, -0.22f, 0.13f, 0.17f, 0.4f);
+        patch(c, PEACH, 0.04f, -0.3f, 0.08f, 0.1f, 0.4f);
+        for (int i = 0; i < 4; i++) { // mackerel bands curving over the back and down the haunch
+            float bx = 0.0f + i * 0.1f;
+            band(c, bx, -0.66f + i * 0.01f, bx + 0.17f, -0.36f, bx + 0.1f, -0.05f, 0.03f, 0.55f);
         }
+        band(c, -0.2f, -0.62f, -0.08f, -0.6f, 0.02f, -0.66f, 0.025f, 0.4f);
+        patch(c, WHITE, -0.16f, -0.42f, 0.11f, 0.21f, 0.5f); // her white bib
+        patch(c, 0x3DFFFFFF, 0.26f, -0.33f, 0.13f, 0.15f, 0.3f); // light on the haunch
+        shade(c, -0.72f, 0f);
         c.restore();
-        rim(c);
+        edge(c, -0.72f, 0f);
 
         // Front legs, side by side at the front: one up to swipe at the colon or to lick.
         float swipe = 0;
@@ -798,24 +1036,21 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
             if (sw >= 0 && sw < 360) swipe = (float) Math.sin(Math.PI * sw / 360f);
         }
         float groom = state == GROOM ? (float) Math.min(1, Math.sin(Math.PI * Math.min(1f, p / 2.4f)) * 1.6f) : 0;
-        float fx = -0.21f - swipe * 0.22f, fy = -swipe * 0.26f, bx = -0.1f, by = 0;
-        if (groom > 0) { fx = -0.21f - groom * 0.06f; fy = -groom * 0.5f; }
-        leg(c, FUR, -0.12f, -0.38f, bx, by, 0.02f);
-        leg(c, FUR, -0.17f, -0.4f, fx, fy, 0.02f);
-        ellipse(c, WHITE, bx, by - 0.02f, 0.07f, 0.045f);
-        ellipse(c, WHITE, fx, fy - 0.02f, 0.07f, 0.045f);
+        float fx = -0.22f - swipe * 0.22f, fy = -0.01f - swipe * 0.26f, bx = -0.11f, by = -0.01f;
+        if (groom > 0) { fx = -0.22f - groom * 0.06f; fy = -0.01f - groom * 0.5f; }
+        limb(c, -0.1f, -0.4f, bx, by, 0.042f, false);
+        limb(c, -0.17f, -0.42f, fx, fy, 0.045f, true);
 
-        // Head: tilts toward where she's looking; back for a yawn; down to lick a paw.
         boolean yawn = state == YAWN;
         float y = yawn ? (float) Math.sin(Math.PI * Math.min(1f, p / 1.6f)) : 0;
-        float lookAt = state == BAT ? -0.8f : look * mirror; // in her own facing
+        float lookAt = state == BAT ? -0.8f : look * mirror;
         c.save();
-        c.translate(-0.2f, -0.8f - y * 0.02f + groom * 0.03f);
-        c.scale(1.08f, 1.08f);
+        c.translate(-0.17f, -0.87f - y * 0.02f + groom * 0.03f);
+        c.scale(1.06f, 1.06f);
         c.rotate(lookAt * 8 - y * 4 + groom * 10);
         boolean blink = t >= blinkAt && t < blinkAt + 150;
         float open = yawn || stretch > 0.2f || groom > 0.3f ? 0.08f : blink ? 0.1f : 1f;
-        head(c, open, y, lookAt, groom);
+        head(c, open, y, lookAt, groom, 0.15f);
         c.restore();
         c.restore();
     }
@@ -843,77 +1078,64 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
             c.scale(1 + 0.18f * (1 - reach), 0.94f);
             c.translate(0, 0.45f);
         }
-
-        // Legs: a walk, the near pair over the body and the far pair behind it. Front legs at
-        // -0.2, back legs at 0.22; each paw swings forward and lifts on its own beat.
         float[] px = pawX, py = pawY;
         for (int i = 0; i < 4; i++) {
             boolean front = i < 2;
-            float bx = front ? -0.2f : 0.22f;
+            float bx = front ? -0.22f : 0.24f;
             float ang = stride + ph[i];
             px[i] = bx + (float) Math.cos(ang) * 0.13f * pace + (i % 2 == 0 ? 0 : 0.03f);
             py[i] = -Math.max(0, (float) Math.sin(ang)) * 0.1f * pace - down;
             if (crouch > 0) { if (!front) px[i] -= 0.1f * crouch; else px[i] -= 0.03f * crouch; }
             if (air) {
-                if (front) { px[i] = -0.4f + reach * 0.08f + (i % 2) * 0.05f; py[i] = -0.42f + reach * 0.38f; }
-                else { px[i] = 0.5f - reach * 0.18f - push * 0.1f + (i % 2) * 0.04f; py[i] = -0.3f + push * 0.25f + reach * 0.05f; }
+                if (front) { px[i] = -0.42f + reach * 0.08f + (i % 2) * 0.05f; py[i] = -0.42f + reach * 0.38f; }
+                else { px[i] = 0.52f - reach * 0.18f - push * 0.1f + (i % 2) * 0.04f; py[i] = -0.3f + push * 0.25f + reach * 0.05f; }
             }
         }
-        for (int i = 1; i < 4; i += 2) leg(c, Alive.mix(FUR, FUR_DARK, 0.3f), i < 2 ? -0.18f : 0.2f, -0.42f - down, px[i], py[i], i < 2 ? 0.04f : -0.06f);
+        for (int i = 1; i < 4; i += 2) limb(c, i < 2 ? -0.17f : 0.22f, -0.44f - down, px[i], py[i], 0.042f, false);
 
-        // Tail: up in a curl as she walks, low and twitching in the crouch, straight out in the air.
         float sway = (float) Math.sin(time * 5) * 0.06f;
-        path.reset();
-        path.moveTo(0.34f, -0.5f);
+        path.reset(); // tail: up in a curl walking, low and twitching in the crouch, straight out in the air
+        path.moveTo(0.36f, -0.52f);
         float tipX, tipY;
-        if (air) { tipX = 0.9f; tipY = -0.56f + sway * 0.3f - reach * 0.2f; path.cubicTo(0.55f, -0.52f, 0.72f, -0.5f - reach * 0.15f, tipX, tipY); }
-        else if (crouch > 0) { tipX = 0.72f + wiggle * 4; tipY = -0.4f; path.cubicTo(0.5f, -0.42f, 0.62f, -0.28f, tipX, tipY); }
-        else { tipX = 0.46f + sway; tipY = -0.97f; path.cubicTo(0.5f, -0.58f, 0.62f, -0.82f, tipX, tipY); }
+        if (air) { tipX = 0.92f; tipY = -0.58f + sway * 0.3f - reach * 0.2f; path.cubicTo(0.56f, -0.54f, 0.74f, -0.52f - reach * 0.15f, tipX, tipY); }
+        else if (crouch > 0) { tipX = 0.74f + wiggle * 4; tipY = -0.42f; path.cubicTo(0.52f, -0.44f, 0.64f, -0.3f, tipX, tipY); }
+        else { tipX = 0.48f + sway; tipY = -1.0f; path.cubicTo(0.52f, -0.6f, 0.64f, -0.84f, tipX, tipY); }
         tail(c, tipX, tipY);
 
-        // Body: lit from above, apricot patches along the back, white below, tabby bands.
         c.save();
         c.translate(wiggle, 0);
-        path.reset();
-        path.moveTo(-0.3f, -0.5f);
-        path.cubicTo(-0.12f, -0.67f, 0.18f, -0.69f, 0.36f, -0.52f);
-        path.cubicTo(0.44f, -0.44f, 0.42f, -0.3f, 0.3f, -0.28f);
-        path.cubicTo(0.1f, -0.23f, -0.14f, -0.23f, -0.3f, -0.3f);
-        path.cubicTo(-0.4f, -0.34f, -0.4f, -0.45f, -0.3f, -0.5f);
-        fill.setShader(new LinearGradient(0, -0.68f, 0, -0.24f, FUR_LIGHT, FUR, Shader.TileMode.CLAMP));
-        c.drawPath(path, fill);
-        fill.setShader(null);
+        path.reset(); // body: a long low oval, chest deeper than the belly
+        path.moveTo(-0.32f, -0.52f);
+        path.cubicTo(-0.14f, -0.69f, 0.2f, -0.7f, 0.38f, -0.54f);
+        path.cubicTo(0.47f, -0.46f, 0.45f, -0.32f, 0.33f, -0.29f);
+        path.cubicTo(0.1f, -0.24f, -0.14f, -0.24f, -0.3f, -0.31f);
+        path.cubicTo(-0.42f, -0.36f, -0.42f, -0.46f, -0.32f, -0.52f);
+        path.close();
+        coat(c, -0.7f, -0.24f);
         c.save();
         c.clipPath(path);
-        ellipse(c, ORANGE, 0.12f, -0.62f, 0.17f, 0.09f);
-        ellipse(c, ORANGE, 0.32f, -0.42f, 0.1f, 0.1f);
-        ellipse(c, PEACH, -0.14f, -0.4f, 0.07f, 0.08f);
-        ellipse(c, PEACH, 0.08f, -0.36f, 0.08f, 0.06f);
-        ellipse(c, WHITE, -0.04f, -0.26f, 0.24f, 0.07f);
-        ellipse(c, WHITE, -0.3f, -0.4f, 0.08f, 0.12f);
-        line.setColor(STRIPE);
-        line.setStrokeWidth(0.035f);
-        for (int i = 0; i < 4; i++) {
-            float bx = -0.16f + i * 0.14f;
-            path.reset();
-            path.moveTo(bx, -0.68f);
-            path.quadTo(bx + 0.04f, -0.46f, bx - 0.02f, -0.3f);
-            c.drawPath(path, line);
+        patch(c, ORANGE, 0.1f, -0.63f, 0.18f, 0.1f, 0.4f);
+        patch(c, ORANGE, 0.34f, -0.44f, 0.11f, 0.11f, 0.4f);
+        patch(c, PEACH, -0.14f, -0.42f, 0.08f, 0.09f, 0.4f);
+        for (int i = 0; i < 5; i++) {
+            float bx = -0.2f + i * 0.13f;
+            band(c, bx, -0.7f, bx + 0.05f, -0.48f, bx - 0.02f, -0.3f, 0.03f, 0.55f);
         }
+        patch(c, WHITE, -0.04f, -0.27f, 0.26f, 0.08f, 0.45f);
+        patch(c, WHITE, -0.32f, -0.4f, 0.09f, 0.13f, 0.45f);
+        shade(c, -0.7f, -0.24f);
         c.restore();
-        rim(c);
+        edge(c, -0.7f, -0.24f);
         c.restore();
 
-        for (int i = 0; i < 4; i += 2) leg(c, FUR, i < 2 ? -0.2f : 0.22f, -0.42f - down, px[i], py[i], i < 2 ? 0.04f : -0.06f);
-        for (int i = 0; i < 4; i++) ellipse(c, i % 2 == 0 ? WHITE : 0xFFD9D3C8, px[i], py[i] - 0.02f, 0.065f, 0.04f);
+        for (int i = 0; i < 4; i += 2) limb(c, i < 2 ? -0.22f : 0.26f, -0.44f - down, px[i], py[i], 0.045f, true);
 
-        // Head: out in front, down a little in the crouch, eyes wide in the air.
-        c.save();
-        c.translate(-0.37f - (air ? 0.04f : 0), -0.6f + crouch * 0.06f - down * 0.3f);
-        c.scale(0.88f, 0.88f);
+        c.save(); // head: out in front, turned a little toward you
+        c.translate(-0.4f - (air ? 0.04f : 0), -0.62f + crouch * 0.06f - down * 0.3f);
+        c.scale(0.86f, 0.86f);
         c.rotate(crouch * 6 - pace * 3);
         boolean blink = t >= blinkAt && t < blinkAt + 150;
-        head(c, air ? 1f : blink ? 0.1f : 1f, 0, -0.8f, 0);
+        head(c, air ? 1f : blink ? 0.1f : 1f, 0, -0.85f, 0, 0.75f);
         c.restore();
         c.restore();
     }
@@ -924,164 +1146,48 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         c.save();
         c.scale(dir, 1);
         c.rotate(swing);
-        leg(c, FUR, 0.12f, 0.42f, 0, 0, -0.02f); // the hooked leg, paw at the origin
-        ellipse(c, WHITE, 0, 0, 0.07f, 0.045f);
-        // the free front leg and the back legs hang loose and sway
         float loose = (float) Math.sin(time * 2.3f) * 0.03f;
-        leg(c, Alive.mix(FUR, FUR_DARK, 0.3f), 0.3f, 0.48f, 0.4f + loose, 0.78f, 0.02f);
-        ellipse(c, 0xFFD9D3C8, 0.4f + loose, 0.78f, 0.06f, 0.04f);
-        leg(c, FUR, 0.14f, 0.95f, 0.1f - loose, 1.24f, 0.03f);
-        leg(c, Alive.mix(FUR, FUR_DARK, 0.3f), 0.3f, 0.95f, 0.34f + loose, 1.22f, 0.03f);
-        ellipse(c, WHITE, 0.1f - loose, 1.24f, 0.065f, 0.04f);
-        ellipse(c, 0xFFD9D3C8, 0.34f + loose, 1.22f, 0.065f, 0.04f);
+        limb(c, 0.3f, 0.5f, 0.4f + loose, 0.8f, 0.042f, false);
+        limb(c, 0.3f, 0.95f, 0.34f + loose, 1.24f, 0.042f, false);
         path.reset(); // tail
         path.moveTo(0.36f, 0.95f);
         path.cubicTo(0.56f, 1.1f, 0.62f + loose * 2, 1.32f, 0.46f + loose * 3, 1.46f);
         tail(c, 0.46f + loose * 3, 1.46f);
         path.reset(); // body, hanging below her shoulder
-        oval.set(0.0f, 0.4f, 0.42f, 1.04f);
-        path.addOval(oval, Path.Direction.CW);
-        fill.setShader(new LinearGradient(0.42f, 0, 0, 0, FUR_LIGHT, FUR, Shader.TileMode.CLAMP));
+        path.moveTo(0.1f, 0.4f);
+        path.cubicTo(0.3f, 0.36f, 0.46f, 0.55f, 0.44f, 0.78f);
+        path.cubicTo(0.42f, 0.95f, 0.3f, 1.06f, 0.2f, 1.06f);
+        path.cubicTo(0.08f, 1.06f, -0.02f, 0.9f, 0.0f, 0.7f);
+        path.cubicTo(0.01f, 0.55f, 0.03f, 0.42f, 0.1f, 0.4f);
+        path.close();
+        fill.setShader(new LinearGradient(0.45f, 0, 0, 0, new int[] {FUR_LIGHT, FUR, FUR_SHADE}, new float[] {0, 0.5f, 1}, Shader.TileMode.CLAMP));
         c.drawPath(path, fill);
         fill.setShader(null);
         c.save();
         c.clipPath(path);
-        ellipse(c, ORANGE, 0.36f, 0.62f, 0.1f, 0.14f);
-        ellipse(c, WHITE, 0.12f, 0.64f, 0.1f, 0.2f);
-        line.setColor(STRIPE);
-        line.setStrokeWidth(0.035f);
+        patch(c, ORANGE, 0.38f, 0.62f, 0.11f, 0.15f, 0.4f);
+        patch(c, PEACH, 0.3f, 0.95f, 0.08f, 0.08f, 0.4f);
         for (int i = 0; i < 3; i++) {
-            float by = 0.55f + i * 0.14f;
-            path.reset();
-            path.moveTo(0.42f, by);
-            path.quadTo(0.3f, by + 0.06f, 0.2f, by + 0.02f);
-            c.drawPath(path, line);
+            float by = 0.55f + i * 0.15f;
+            band(c, 0.46f, by, 0.3f, by + 0.07f, 0.16f, by + 0.03f, 0.03f, 0.55f);
         }
+        patch(c, WHITE, 0.1f, 0.66f, 0.1f, 0.2f, 0.45f);
+        shade(c, 0.4f, 1.06f);
         c.restore();
-        rim(c);
+        line.setColor(OUTLINE);
+        line.setStrokeWidth(0.013f);
+        c.drawPath(path, line);
+        limb(c, 0.14f, 1.0f, 0.1f - loose, 1.26f, 0.042f, true);
+        limb(c, 0.12f, 0.44f, 0, 0, 0.045f, true); // the hooked leg, paw at the origin
         c.save(); // head, looking at you
-        c.translate(0.14f, 0.34f);
+        c.translate(0.12f, 0.33f);
         c.scale(0.95f, 0.95f);
         c.rotate(-8);
         long t = SystemClock.uptimeMillis();
         boolean blink = t >= blinkAt && t < blinkAt + 150;
-        head(c, blink ? 0.1f : 1f, 0, look * -dir, 0);
+        head(c, blink ? 0.1f : 1f, 0, look * -dir, 0, 0.1f);
         c.restore();
         c.restore();
-    }
-
-    // A leg from (ax, ay) to the paw at (px, py), bending a little at the knee.
-    private void leg(Canvas c, int color, float ax, float ay, float px, float py, float bend) {
-        path.reset();
-        path.moveTo(ax, ay);
-        path.quadTo((ax + px) / 2 + bend, (ay + py) / 2, px, py);
-        line.setColor(color);
-        line.setStrokeWidth(0.09f);
-        c.drawPath(path, line);
-        line.setColor(STRIPE); // a couple of tabby bars on the leg
-        line.setStrokeWidth(0.03f);
-        for (int i = 1; i <= 2; i++) {
-            float k = i / 3.6f, lx = ax + (px - ax) * k, ly = ay + (py - ay) * k;
-            c.drawLine(lx - 0.035f, ly, lx + 0.035f, ly, line);
-        }
-    }
-
-    // Draws the tail along `path`: fur, dark rings, and a dark tip at (tx, ty).
-    private void tail(Canvas c, float tx, float ty) {
-        stroke(c, FUR_DARK, 0.09f);
-        stroke(c, FUR, 0.068f);
-        line.setColor(FUR_DARK);
-        line.setStrokeWidth(0.075f);
-        line.setPathEffect(new android.graphics.DashPathEffect(new float[] {0.04f, 0.085f}, 0.02f));
-        c.drawPath(path, line);
-        line.setPathEffect(null);
-        ellipse(c, FUR_DARK, tx, ty, 0.05f, 0.05f);
-    }
-
-    private void head(Canvas c, float open, float yawn, float lookAt, float groom) {
-        for (int side = -1; side <= 1; side += 2) { // big ears, dark-edged, pink inside; one apricot
-            ear(c, side, FUR_DARK, 1.08f);
-            ear(c, side, side < 0 ? Alive.mix(FUR, ORANGE, 0.6f) : FUR, 0.98f);
-            ear(c, side, 0xC9ECB9BC, 0.62f);
-        }
-        path.reset();
-        path.addOval(new RectF(-0.27f, -0.215f, 0.27f, 0.225f), Path.Direction.CW);
-        fill.setShader(new RadialGradient(-0.05f, -0.1f, 0.34f, FUR_LIGHT, FUR, Shader.TileMode.CLAMP));
-        c.drawPath(path, fill);
-        fill.setShader(null);
-        c.save();
-        c.clipPath(path);
-        ellipse(c, ORANGE, -0.1f, -0.11f, 0.11f, 0.1f);      // the apricot blaze over one eye
-        ellipse(c, PEACH, -0.04f, -0.2f, 0.05f, 0.05f);
-        ellipse(c, PEACH, 0.19f, 0.07f, 0.08f, 0.07f);        // and an apricot cheek
-        ellipse(c, WHITE, 0, 0.11f, 0.16f, 0.115f);           // white muzzle and chin
-        line.setColor(STRIPE);
-        line.setStrokeWidth(0.02f);
-        for (int i = -1; i <= 1; i++) c.drawLine(i * 0.05f, -0.22f, i * 0.045f, -0.13f, line); // the tabby "M"
-        c.drawLine(-0.1f, -0.22f, -0.085f, -0.15f, line);
-        c.drawLine(0.1f, -0.22f, 0.085f, -0.15f, line);
-        for (int side = -1; side <= 1; side += 2) { // stripes out from the eyes over the cheeks
-            c.drawLine(side * 0.17f, -0.07f, side * 0.27f, -0.11f, line);
-            c.drawLine(side * 0.18f, 0.0f, side * 0.28f, 0.0f, line);
-        }
-        c.restore();
-        rim(c);
-
-        for (int side = -1; side <= 1; side += 2) { // big round green eyes that follow the look
-            float ex = side * 0.1f, ey = -0.015f;
-            if (open < 0.3f) {
-                path.reset();
-                path.moveTo(ex - 0.055f, ey);
-                path.quadTo(ex, ey + 0.04f, ex + 0.055f, ey);
-                stroke(c, 0xFF2F2823, 0.016f);
-                continue;
-            }
-            ellipse(c, 0xFF2F2823, ex, ey, 0.074f, 0.08f * open);
-            fill.setShader(new RadialGradient(ex, ey + 0.01f, 0.07f, 0xFFDCE69A, EYE, Shader.TileMode.CLAMP));
-            oval.set(ex - 0.065f, ey - 0.071f * open, ex + 0.065f, ey + 0.071f * open);
-            c.drawOval(oval, fill);
-            fill.setShader(null);
-            ellipse(c, PUPIL, ex + lookAt * 0.025f, ey + 0.008f, 0.03f, 0.052f * open);
-            ellipse(c, 0xF2FFFFFF, ex - 0.024f, ey - 0.028f * open, 0.016f, 0.016f);
-            ellipse(c, 0x99FFFFFF, ex + 0.02f, ey + 0.03f * open, 0.008f, 0.008f);
-        }
-        path.reset(); // pink nose with a dark edge
-        path.moveTo(-0.027f, 0.052f);
-        path.lineTo(0.027f, 0.052f);
-        path.lineTo(0, 0.082f);
-        path.close();
-        fill.setColor(NOSE);
-        c.drawPath(path, fill);
-        stroke(c, 0xB32F2823, 0.008f);
-        if (yawn > 0.05f) {
-            ellipse(c, 0xFF5A1E2C, 0, 0.12f, 0.05f * yawn, 0.055f * yawn);
-            ellipse(c, NOSE, 0, 0.145f, 0.03f * yawn, 0.02f * yawn);
-        } else if (groom > 0.3f) {
-            ellipse(c, NOSE, 0.015f, 0.11f, 0.018f, 0.014f); // a little tongue
-        } else {
-            path.reset();
-            path.moveTo(-0.04f, 0.095f);
-            path.quadTo(-0.02f, 0.115f, 0, 0.09f);
-            path.quadTo(0.02f, 0.115f, 0.04f, 0.095f);
-            stroke(c, 0x99403832, 0.009f);
-        }
-        line.setColor(0x80FFFFFF); // whiskers
-        line.setStrokeWidth(0.006f);
-        for (int side = -1; side <= 1; side += 2)
-            for (int i = 0; i < 3; i++)
-                c.drawLine(side * 0.13f, 0.075f + i * 0.015f, side * 0.36f, 0.035f + i * 0.04f, line);
-    }
-
-    private void ear(Canvas c, int side, int color, float k) {
-        float bx = side * 0.14f, by = -0.15f;
-        path.reset();
-        path.moveTo(bx + side * 0.11f * k, by + 0.09f * k);
-        path.lineTo(bx + side * 0.085f * k, by - 0.19f * k);
-        path.quadTo(bx + side * 0.07f * k, by - 0.215f * k, bx + side * 0.045f * k, by - 0.19f * k);
-        path.lineTo(bx - side * 0.1f * k, by - 0.02f * k);
-        path.close();
-        fill.setColor(color);
-        c.drawPath(path, fill);
     }
 
     // A loaf: asleep with her head down on her paws, or awake and lounging, tail tip flicking.
@@ -1092,38 +1198,39 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         c.save();
         c.scale(mirror, 1);
         c.translate(0, (1 - settle) * -0.1f);
-        path.reset();
-        path.addOval(new RectF(-0.4f, -0.34f * breathe, 0.4f, 0), Path.Direction.CW);
-        fill.setShader(new LinearGradient(0, -0.34f, 0, 0, FUR_LIGHT, FUR, Shader.TileMode.CLAMP));
-        c.drawPath(path, fill);
-        fill.setShader(null);
-        c.save();
-        c.clipPath(path);
-        ellipse(c, ORANGE, 0.16f, -0.24f, 0.17f, 0.12f);
-        line.setColor(STRIPE);
-        line.setStrokeWidth(0.035f);
-        for (int i = 0; i < 4; i++) {
-            float bx = -0.1f + i * 0.12f;
-            path.reset();
-            path.moveTo(bx, -0.34f);
-            path.quadTo(bx + 0.05f, -0.18f, bx, -0.02f);
-            c.drawPath(path, line);
-        }
-        c.restore();
-        rim(c);
         float flick = awake ? (float) Math.sin(time * 3.2f) * 0.05f : 0;
         path.reset(); // tail round the front
-        path.moveTo(0.36f, -0.06f);
-        path.quadTo(0.3f, 0.02f, -0.05f + flick, -0.01f - Math.abs(flick));
+        path.moveTo(0.38f, -0.08f);
+        path.cubicTo(0.44f, 0.04f, 0.2f, 0.06f, -0.05f + flick, -0.01f - Math.abs(flick));
         tail(c, -0.05f + flick, -0.01f - Math.abs(flick));
-        ellipse(c, WHITE, -0.3f, -0.03f, 0.07f, 0.04f);
-        ellipse(c, WHITE, -0.2f, -0.02f, 0.07f, 0.04f);
+        path.reset(); // the loaf
+        path.moveTo(-0.38f, -0.04f);
+        path.cubicTo(-0.4f, -0.3f * breathe, -0.1f, -0.38f * breathe, 0.1f, -0.36f * breathe);
+        path.cubicTo(0.3f, -0.34f * breathe, 0.44f, -0.22f, 0.42f, -0.04f);
+        path.cubicTo(0.42f, 0.0f, 0.4f, 0f, 0.36f, 0f);
+        path.lineTo(-0.34f, 0f);
+        path.cubicTo(-0.38f, 0f, -0.38f, -0.02f, -0.38f, -0.04f);
+        path.close();
+        coat(c, -0.38f, 0f);
+        c.save();
+        c.clipPath(path);
+        patch(c, ORANGE, 0.18f, -0.25f, 0.17f, 0.11f, 0.4f);
+        patch(c, PEACH, -0.1f, -0.1f, 0.09f, 0.07f, 0.4f);
+        for (int i = 0; i < 5; i++) {
+            float bx = -0.16f + i * 0.12f;
+            band(c, bx, -0.37f, bx + 0.05f, -0.2f, bx, -0.02f, 0.03f, 0.5f);
+        }
+        shade(c, -0.38f, 0f);
+        c.restore();
+        edge(c, -0.38f, 0f);
+        limb(c, -0.28f, -0.1f, -0.3f, -0.015f, 0.04f, true);
+        limb(c, -0.18f, -0.1f, -0.19f, -0.015f, 0.04f, true);
         c.save();
         long t = SystemClock.uptimeMillis();
         boolean blink = t >= blinkAt && t < blinkAt + 150;
-        if (awake) { c.translate(-0.22f, -0.36f); c.scale(0.9f, 0.9f); c.rotate(-3); }
-        else { c.translate(-0.24f, -0.25f); c.scale(0.82f, 0.82f); c.rotate(-8); }
-        head(c, awake ? (blink ? 0.1f : 1f) : 0.08f, 0, awake ? look * mirror : 0, 0);
+        if (awake) { c.translate(-0.22f, -0.37f); c.scale(0.9f, 0.9f); c.rotate(-3); }
+        else { c.translate(-0.24f, -0.26f); c.scale(0.82f, 0.82f); c.rotate(-8); }
+        head(c, awake ? (blink ? 0.1f : 1f) : 0.08f, 0, awake ? look * mirror : 0, 0, 0.2f);
         c.restore();
         c.restore();
     }
@@ -1141,54 +1248,43 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
         c.save();
         c.scale(mirror, 1);
         c.translate(0, (1 - settle) * -0.18f);
-        // Legs hang down each side (front at -x, where her head is), the far ones a shade darker.
-        int far = Alive.mix(FUR, FUR_DARK, 0.3f);
-        leg(c, far, -ex + 0.12f, ey - 0.02f, -ex + 0.1f - sway, ey + 0.34f, 0.02f);
-        leg(c, FUR, -ex + 0.03f, ey, -ex - 0.01f + sway, ey + 0.38f, -0.02f);
-        leg(c, far, ex - 0.12f, ey - 0.02f, ex - 0.1f + sway, ey + 0.34f, -0.02f);
-        leg(c, FUR, ex - 0.03f, ey, ex + 0.01f - sway, ey + 0.38f, 0.02f);
-        ellipse(c, 0xFFD9D3C8, -ex + 0.1f - sway, ey + 0.34f, 0.06f, 0.04f);
-        ellipse(c, WHITE, -ex - 0.01f + sway, ey + 0.38f, 0.065f, 0.045f);
-        ellipse(c, 0xFFD9D3C8, ex - 0.1f + sway, ey + 0.34f, 0.06f, 0.04f);
-        ellipse(c, WHITE, ex + 0.01f - sway, ey + 0.38f, 0.065f, 0.045f);
+        limb(c, -ex + 0.12f, ey - 0.02f, -ex + 0.1f - sway, ey + 0.34f, 0.04f, false);
+        limb(c, ex - 0.12f, ey - 0.02f, ex - 0.1f + sway, ey + 0.34f, 0.04f, false);
         path.reset(); // tail hangs down the back, curling at the tip
         path.moveTo(ex - 0.04f, ey + 0.06f);
         path.cubicTo(ex + 0.12f, ey + 0.3f, ex + 0.06f + sway * 3, ey + 0.55f, ex - 0.08f + sway * 4, ey + 0.72f);
         tail(c, ex - 0.08f + sway * 4, ey + 0.72f);
-        // Body: a thick band that follows the curve.
         float ro = R + 0.17f + breathe, ri = Math.max(0.05f, R - 0.07f);
-        path.reset();
+        path.reset(); // body: a thick band that follows the curve
         oval.set(-ro, R - ro, ro, R + ro);
         path.arcTo(oval, 270 - a - 6, 2 * a + 12);
         oval.set(-ri, R - ri, ri, R + ri);
         path.arcTo(oval, 270 + a + 6, -2 * a - 12);
         path.close();
-        fill.setShader(new LinearGradient(0, -0.22f, 0, 0.3f, FUR_LIGHT, FUR, Shader.TileMode.CLAMP));
-        c.drawPath(path, fill);
-        fill.setShader(null);
+        coat(c, -0.2f, ey + 0.1f);
         c.save();
         c.clipPath(path);
-        ellipse(c, ORANGE, 0.1f, -0.1f, 0.16f, 0.1f);
-        ellipse(c, ORANGE, ex - 0.1f, ey - 0.02f, 0.11f, 0.1f);
-        ellipse(c, PEACH, -0.2f, 0.02f, 0.07f, 0.07f);
-        ellipse(c, WHITE, -ex + 0.1f, ey + 0.12f, 0.12f, 0.08f); // white chest showing at the front
-        line.setColor(STRIPE);
-        line.setStrokeWidth(0.035f);
+        patch(c, ORANGE, 0.1f, -0.1f, 0.17f, 0.11f, 0.4f);
+        patch(c, ORANGE, ex - 0.1f, ey - 0.02f, 0.12f, 0.11f, 0.4f);
+        patch(c, PEACH, -0.2f, 0.02f, 0.08f, 0.08f, 0.4f);
         for (int i = -2; i <= 2; i++) { // bands across her back, fanning round the curve
             float an = (float) Math.toRadians(i * a * 0.42f);
             float sx = (float) Math.sin(an), cy = (float) Math.cos(an);
-            c.drawLine(sx * (R - 0.04f), R - cy * (R - 0.04f), sx * (R + 0.19f), R - cy * (R + 0.19f), line);
+            band(c, sx * (R - 0.04f), R - cy * (R - 0.04f), sx * (R + 0.08f) + 0.02f, R - cy * (R + 0.08f), sx * (R + 0.19f), R - cy * (R + 0.19f), 0.03f, 0.55f);
         }
+        patch(c, WHITE, -ex + 0.1f, ey + 0.12f, 0.12f, 0.09f, 0.45f);
+        shade(c, -0.2f, ey + 0.1f);
         c.restore();
-        rim(c);
-        // Head: at the front end, resting on the curve, turned to you.
-        c.save();
+        edge(c, -0.2f, ey + 0.1f);
+        limb(c, -ex + 0.03f, ey, -ex - 0.01f + sway, ey + 0.38f, 0.042f, true);
+        limb(c, ex - 0.03f, ey, ex + 0.01f - sway, ey + 0.38f, 0.042f, true);
+        c.save(); // head: at the front end, resting on the curve, turned to you
         c.translate(-ex - 0.03f, ey - 0.13f);
         c.scale(0.95f, 0.95f);
         c.rotate(-a * 0.5f - 6);
         boolean blink = t >= blinkAt && t < blinkAt + 150;
         float open = blink ? 0.1f : p > 4 ? 0.62f : 1f;
-        head(c, open, 0, look * mirror * 0.5f, 0);
+        head(c, open, 0, look * mirror * 0.5f, 0, 0.1f);
         c.restore();
         c.restore();
     }
@@ -1201,19 +1297,6 @@ final class ClockCat extends SurfaceView implements SurfaceHolder.Callback {
             fill.setColor(Alive.fade(0xFFFFFFFF, (float) Math.sin(Math.PI * k) * 0.85f));
             c.drawText("z", x - s * 0.1f + k * s * 0.35f, floor - s * (0.5f + k * 0.55f), fill);
         }
-    }
-
-    private void stroke(Canvas c, int color, float width) {
-        line.setColor(color);
-        line.setStrokeWidth(width);
-        c.drawPath(path, line);
-    }
-
-    // A thin dark outline, so she reads cleanly on any sky.
-    private void rim(Canvas c) {
-        line.setColor(0xB3352E29);
-        line.setStrokeWidth(0.012f);
-        c.drawPath(path, line);
     }
 
     private void ellipse(Canvas c, int color, float cx, float cy, float rx, float ry) {
