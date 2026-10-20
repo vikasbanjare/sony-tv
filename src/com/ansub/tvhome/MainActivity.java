@@ -97,7 +97,7 @@ public class MainActivity extends Activity {
     private static final int ROW1_TOP = 604, ROW_STEP = 224;
     // More rows push the grid up, but never into the clock: it starts this far below it. With a second
     // row the clock gets smaller, so the bottom row still fits on screen.
-    private static final int HEADER_TOP = 110, HEADER_GAP = 64, CLOCK_BIG = 250, CLOCK_SMALL = 210;
+    private static final int HEADER_TOP = 40, HEADER_GAP = 64, CLOCK_BIG = 250, CLOCK_SMALL = 210;
     private static final int ICON_TOP = 100, ICON_BUTTON = 72, ICON_SIZE = 40, ICON_GAP = 12; // level with the greeting
     private float scale = 1f;
 
@@ -119,8 +119,8 @@ public class MainActivity extends Activity {
     // the sun has moved a degree, the weather or the day changed.
     private TextView greeting, sunLine, badge;
     private LinearLayout header; // greeting, clock and the line under it
-    private TextClock bigClock;
-    private Pet pet; // the cat that plays on the home screen
+    private ClockCat clock; // the big clock, with the cat that lives on it
+    private LinearLayout info; // greeting, date line and badge, beside the clock
     private String sceneKey;
     private final java.util.concurrent.ExecutorService worker = java.util.concurrent.Executors.newSingleThreadExecutor();
     private Alive.Weather weather;
@@ -175,21 +175,18 @@ public class MainActivity extends Activity {
 
         backdrop();
 
-        // A big clock filled with a gradient that ends in the focused app's color, a thin line, then
-        // stacked beside it: the greeting, the date with sunrise, sunset or the moon, and a badge for
-        // the weather or a festival. Side by side, so the clock stays big with two rows of apps.
+        // The big clock with its cat (see ClockCat), a thin line, then stacked beside it: the
+        // greeting, the date with sunrise, sunset or the moon, and a badge for the weather or a
+        // festival. Side by side, so the clock stays big with two rows of apps. Lined up along the
+        // bottom of the digits; the clock's box reaches up above them for the cat.
         header = new LinearLayout(this);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        header.setClipChildren(false); // the clock's glow spreads past its edges
+        header.setGravity(Gravity.BOTTOM);
         shownLocale = java.util.Locale.getDefault();
-        bigClock = clock("h:mm", "H:mm", px(CLOCK_BIG), Color.WHITE, light);
-        bigClock.setLetterSpacing(-0.035f);
-        bigClock.setFontFeatureSettings("tnum");
-        bigClock.setIncludeFontPadding(false);
-        bigClock.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> { if (b - t != ob - ot) clockGradient(); });
+        clock = new ClockCat(this, light);
+        clock.setTextSize(px(CLOCK_BIG));
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, -2);
-        cp.leftMargin = px(-12); // thin digits carry their own side space
-        header.addView(bigClock, cp);
+        cp.leftMargin = -clock.glowPad(); // the digits line up with the apps; the glow sticks out
+        header.addView(clock, cp);
 
         View rule = new View(this);
         rule.setBackgroundColor(0x33FFFFFF);
@@ -198,7 +195,7 @@ public class MainActivity extends Activity {
         rp.rightMargin = px(44);
         header.addView(rule, rp);
 
-        LinearLayout info = new LinearLayout(this);
+        info = new LinearLayout(this);
         info.setOrientation(LinearLayout.VERTICAL);
         greeting = text(px(44), Color.WHITE, semibold);
         greeting.setIncludeFontPadding(false);
@@ -222,11 +219,9 @@ public class MainActivity extends Activity {
         bp.topMargin = px(20);
         info.addView(badge, bp);
         header.addView(info);
+        alignInfo();
         refreshAlive();
         root.addView(header, at(px(MARGIN), px(HEADER_TOP), -2, -2));
-        pet = new Pet(this);
-        root.addView(pet, new FrameLayout.LayoutParams(-1, -1));
-        root.getViewTreeObserver().addOnGlobalLayoutListener(this::petFloors);
 
         moveHint = text(px(24), 0xA8FFFFFF, regular);
         moveHint.setText(Strings.t("Use the arrows to move it, then press OK"));
@@ -258,7 +253,7 @@ public class MainActivity extends Activity {
         handler.removeCallbacks(tick);
         if (accentAnim != null) accentAnim.cancel();
         worker.shutdownNow();
-        pet.stop();
+        clock.stop();
         super.onDestroy();
     }
 
@@ -339,7 +334,7 @@ public class MainActivity extends Activity {
         refreshNetwork();
         handler.removeCallbacks(tick);
         tick.run();
-        pet.start();
+        clock.start();
         // Back after a while: start on the app usually opened at this time of day, if there is one.
         // A quick trip away keeps focus where it was.
         View f = getCurrentFocus();
@@ -353,7 +348,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         handler.removeCallbacks(tick);
-        pet.stop();
+        clock.stop();
         awaySince = System.currentTimeMillis();
         super.onPause();
     }
@@ -389,56 +384,39 @@ public class MainActivity extends Activity {
         int clear = color & 0x00FFFFFF;
         accentTop.setColors(new int[] {Alive.fade(color | 0xFF000000, festive ? 0.22f : 0.5f), clear});
         accentMid.setColors(new int[] {Alive.fade(color | 0xFF000000, 0.16f), clear});
-        clockGradient();
-        if (pet != null) pet.setAccent(color);
+        if (clock != null) clock.setAccent(color);
     }
 
-    // Where the cat can walk, in the page's pixels: the bottom of the screen first, then the tops of
-    // the bottom row of tiles, then the top of the clock's digits.
-    private void petFloors() {
-        if (pet == null || root.getWidth() == 0 || bigClock.getWidth() == 0) return;
-        List<Pet.Floor> list = new ArrayList<>();
-        list.add(new Pet.Floor(0, root.getWidth(), getResources().getDisplayMetrics().heightPixels - px(8)));
-        int bottom = 0;
-        for (View t : tiles) bottom = Math.max(bottom, ((View) t.getParent()).getTop());
-        for (View t : tiles) {
-            View wrap = (View) t.getParent();
-            if (wrap.getTop() == bottom && bottom > 0) list.add(new Pet.Floor(wrap.getLeft(), wrap.getLeft() + t.getWidth(), bottom));
-        }
-        android.graphics.Rect digit = new android.graphics.Rect();
-        bigClock.getPaint().getTextBounds("0", 0, 1, digit);
-        float x0 = header.getLeft() + bigClock.getLeft() + bigClock.getCompoundPaddingLeft();
-        float x1 = x0 + bigClock.getPaint().measureText(bigClock.getText().toString());
-        list.add(new Pet.Floor(x0, x1, header.getTop() + bigClock.getTop() + bigClock.getBaseline() + digit.top));
-        pet.setFloors(list, px(130));
+    // The greeting, line and badge sit level with the middle of the digits.
+    private void alignInfo() {
+        int cap = Math.round(clock.getTextSizePx() * 0.71f), pad = clock.glowPad();
+        info.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        View rule = header.getChildAt(1);
+        LinearLayout.LayoutParams ip = (LinearLayout.LayoutParams) info.getLayoutParams();
+        LinearLayout.LayoutParams rp = (LinearLayout.LayoutParams) rule.getLayoutParams();
+        ip.bottomMargin = pad + Math.max(0, (cap - info.getMeasuredHeight()) / 2);
+        rp.height = Math.round(cap * 0.85f);
+        rp.bottomMargin = pad + (cap - rp.height) / 2;
+        info.setLayoutParams(ip);
+        rule.setLayoutParams(rp);
     }
 
     // Any button wakes the cat, and it looks at whatever has focus once the press has moved it.
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
         boolean handled = super.dispatchKeyEvent(e);
-        if (pet != null && e.getAction() == KeyEvent.ACTION_DOWN) {
+        if (clock != null && e.getAction() == KeyEvent.ACTION_DOWN) {
             View f = getCurrentFocus();
+            int[] at = new int[2], me = new int[2];
+            clock.getLocationOnScreen(me);
+            float lookAt = me[0];
             if (f != null) {
-                int[] at = new int[2], me = new int[2];
                 f.getLocationOnScreen(at);
-                pet.getLocationOnScreen(me);
-                pet.poke(at[0] + f.getWidth() / 2f - me[0], at[1] + f.getHeight() / 2f - me[1]);
-            } else pet.poke(pet.cx, 0);
+                lookAt = at[0] + f.getWidth() / 2f;
+            }
+            clock.poke(lookAt - me[0]);
         }
         return handled;
-    }
-
-    // The clock's digits: white at the top into a light tint of the focused app's color at the
-    // bottom, with a soft glow of that color behind them.
-    private void clockGradient() {
-        if (bigClock == null || bigClock.getHeight() == 0) return;
-        int c = accentNow | 0xFF000000, h = bigClock.getHeight();
-        bigClock.getPaint().setShader(new android.graphics.LinearGradient(0, h * 0.12f, 0, h * 0.95f,
-                new int[] {Color.WHITE, Alive.mix(c, Color.WHITE, 0.62f), Alive.mix(c, Color.WHITE, 0.25f)},
-                new float[] {0f, 0.55f, 1f}, android.graphics.Shader.TileMode.CLAMP));
-        bigClock.setShadowLayer(px(56), 0, px(6), Alive.fade(c, 0.45f));
-        bigClock.invalidate();
     }
 
     private void accentTo(int color) {
@@ -564,7 +542,8 @@ public class MainActivity extends Activity {
         int launchable = 0;
         for (String pkg : apps) if (launchIntent(pm, pkg) != null) launchable++;
         int rows = Math.max(1, (launchable + PER_ROW - 1) / PER_ROW);
-        bigClock.setTextSize(TypedValue.COMPLEX_UNIT_PX, px(rows > 1 ? CLOCK_SMALL : CLOCK_BIG));
+        clock.setTextSize(px(rows > 1 ? CLOCK_SMALL : CLOCK_BIG));
+        alignInfo();
         header.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         int headerBottom = px(HEADER_TOP) + header.getMeasuredHeight();
         gridTop = Math.max(headerBottom + px(HEADER_GAP), px(ROW1_TOP) - (rows - 1) * px(ROW_STEP));
