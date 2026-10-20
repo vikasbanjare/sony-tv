@@ -5,6 +5,7 @@
 #
 #   sh scripts/make-patterns.sh            all clips into tests/patterns/
 #   DUR=10 sh scripts/make-patterns.sh     shorter clips (seconds), for a quick try
+#   ONLY=motion sh scripts/make-patterns.sh  only (re)make the motion clips
 #
 # Play them from a USB stick in the TV's own media player (tests the TV's
 # processing, the one that Netflix/YouTube also go through) and from the Mac
@@ -42,6 +43,7 @@ sdr() { # name, luma expression (8-bit code values, 16 = black, 235 = white)
   echo "  $OUT/$1.mp4"
 }
 
+if [ "$ONLY" != motion ]; then
 echo "SDR picture patterns (BT.709, limited range)"
 # Black level: 20 bars, code 12 to 31 from left to right, middle third of the screen.
 # Bars 12-16 must look identical to the background (16). Bar 17 should be just visible.
@@ -53,13 +55,23 @@ sdr sdr-gray-ramp "16+trunc(X*220/W)"
 # 11-step greyscale, 0% to 100% in 10% steps: tint (white balance) and gamma by eye.
 sdr sdr-gray-steps "$(columns 16 38 60 82 104 126 147 169 191 213 235)"
 
+fi
+
 echo "SDR motion clips (the slow part: a few minutes)"
-MOTION=$(echo "$SDR" | sed 's/-crf 4/-crf 16/') # moving detail at CRF 4 would be gigabytes
+# Capped bitrate and the right H.264 level, so the TV's own player decodes them: 4K 50p needs
+# level 5.2. The 1080p copies are a fallback for players that show black on the 4K ones.
 MDUR=$((DUR < 30 ? DUR : 30))
-$FF -f lavfi -i "testsrc2=s=${W}x$H:r=50:d=$MDUR,scroll=horizontal=0.0015,format=yuv420p" $MOTION "$OUT/sdr-motion-pan-50p.mp4"
-echo "  $OUT/sdr-motion-pan-50p.mp4"
-$FF -f lavfi -i "testsrc2=s=${W}x$H:r=24000/1001:d=$MDUR,scroll=horizontal=0.003,format=yuv420p" $MOTION "$OUT/sdr-motion-pan-24p.mp4"
-echo "  $OUT/sdr-motion-pan-24p.mp4"
+MOTION="-c:v libx264 -preset medium -crf 18 -maxrate 40M -bufsize 80M -profile:v high -pix_fmt yuv420p \
+ -color_range tv -colorspace bt709 -color_primaries bt709 -color_trc bt709 -movflags +faststart"
+pan() { # name, size, rate, scroll speed, level
+  $FF -f lavfi -i "testsrc2=s=$2:r=$3:d=$MDUR,scroll=horizontal=$4,format=yuv420p" $MOTION -level:v "$5" "$OUT/$1.mp4"
+  echo "  $OUT/$1.mp4"
+}
+pan sdr-motion-pan-50p "${W}x$H" 50 0.0015 5.2
+pan sdr-motion-pan-24p "${W}x$H" 24000/1001 0.003 5.1
+pan sdr-motion-pan-24p-1080 1920x1080 24000/1001 0.003 4.1
+pan sdr-motion-pan-50p-1080 1920x1080 50 0.0015 4.2
+[ "$ONLY" = motion ] && { echo "Done (motion clips only)."; exit 0; }
 
 echo "HDR10 picture patterns (BT.2020, PQ, MaxCLL 1000)"
 dark="" ; bright=""

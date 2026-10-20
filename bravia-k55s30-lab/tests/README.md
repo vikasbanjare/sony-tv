@@ -4,7 +4,7 @@ One change at a time, compared against the baseline, kept only if it is better.
 
 ## The clips
 
-`sh scripts/make-patterns.sh` writes these to `tests/patterns/` (not committed; about 450 MB, most of it the two motion clips).
+`sh scripts/make-patterns.sh` writes these to `tests/patterns/` (not committed; a few hundred MB, most of it the motion clips).
 Copy the folder to a USB stick (exFAT) and play it in the TV's **Media Player**. That tests the
 TV's own processing, the same path Netflix and YouTube go through. Play the same files from the
 Mac with mpv to test the HDMI path.
@@ -35,6 +35,7 @@ Or copy them yourself:
 | `sdr-gray-steps.mp4` | 11 steps, 0 % to 100 % | Each step distinct, all neutral grey (no pink or green cast) |
 | `sdr-motion-pan-50p.mp4` | Scrolling test card, 50 fps | Smooth, readable text, no tearing |
 | `sdr-motion-pan-24p.mp4` | Scrolling test card, 23.976 fps | Even judder (no irregular stutter); Motionflow trades judder for "soap-opera" look |
+| `sdr-motion-pan-24p-1080.mp4`, `sdr-motion-pan-50p-1080.mp4` | The same in 1080p | Use these if the 4K ones show black or stutter in the TV's player (`ONLY=motion sh scripts/make-patterns.sh` remakes just the motion clips) |
 | `hdr10-pq-steps.mp4` | HDR10. Top: 0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5 nits. Bottom: 100, 200, 300, 400, 500, 600, 800, 1000, 1500, 2000 nits | More visible top steps = better shadow detail. The bottom steps merge where the TV runs out of brightness; that point should not move to the left after a change |
 | `audio-1khz-minus20dbfs` | 1 kHz tone at -20 dBFS | Use with a phone sound meter app to match levels between tests |
 | `audio-pink-noise` | Pink noise, peaks about -21 dBFS | Even, smooth hiss; check balance and TV position settings |
