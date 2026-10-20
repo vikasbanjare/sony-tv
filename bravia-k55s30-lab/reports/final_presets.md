@@ -33,7 +33,7 @@ Light sensor back on if the room light changes a lot during the day.
 | Setting | Start from | Decided by | Kept value |
 |---|---|---|---|
 | HDR mode | Auto | P20 | |
-| Picture mode | Cinema vs Professional | P22 | |
+| Picture mode | Cinema vs Professional | P22, T008 | **As found** (dark steps visible, highlights distinct to ~1000 nits) |
 | Brightness | Max (HDR needs it) | P22 | |
 | Peak luminance / Auto local dimming | Only if the menu has them | P18, P19 | |
 
