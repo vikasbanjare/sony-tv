@@ -20,13 +20,13 @@ BRAVIA 3 or the BF1 platform; for every project the answer is **none**.
 
 | Interface | What's known | Status |
 |---|---|---|
-| Professional REST API (`/sony/video` getPictureQualitySettings etc.) | Documented for BRAVIA Professional Displays only. Needs a Pre-Shared Key for most methods | **Not answering so far.** 2026-10-20: port 80 refused every call (connection refused, not an error reply), so no web server was listening. IP control was probably off; re-test with it on. The Help Guide has no PSK setting, and one unverified report says BRAVIA 3 dropped it |
-| Simple IP control | Named in the K-55S30 Help Guide (Settings > Network & Internet > IP control) | Present. Its command set was not reviewed here; no picture-quality commands are assumed |
+| Professional REST API (`/sony/video` getPictureQualitySettings etc.) | Documented for BRAVIA Professional Displays only. Needs a Pre-Shared Key for most methods | **Not available on this TV.** 2026-10-20, with IP control on (port 20060 answered): port 80 still refused every connection, so no REST server runs. Matches the Help Guide having no Pre-Shared Key setting. Picture and sound settings are changed with the remote |
+| Simple IP control | Named in the K-55S30 Help Guide (Settings > Network & Internet > IP control) | **On and answering** (TCP port 20060, 2026-10-20). Its command set was not reviewed here; no picture-quality commands are assumed |
 | ADB | Over Wi-Fi on port 5555 with USB debugging on, as `install.sh` uses; or Developer options > Wireless debugging (Android 11+) | Works on Android TV 12 in general. Gives device facts (`scripts/adb-diagnostics.sh`), not panel brightness, zone count or panel type |
 
 ## Decision
 
 Use now: mpv + libplacebo on the Mac; the lab's own read-only scripts.
 Use only with a colorimeter: ArgyllCMS, DisplayCAL, tv-calibration (user-menu steps only).
-Decide after the probe: the REST API for preset switching.
+Ruled out by the probe: the REST API (no server on port 80), so no network preset switching.
 Not used: sony-bravia-adb-scripts (as a tool), RootlessJamesDSP, JamesDSPManager. See `unavailable_features.md`.

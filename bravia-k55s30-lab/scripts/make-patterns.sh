@@ -19,7 +19,7 @@ mkdir -p "$OUT"
 
 W=3840; H=2160
 LOOP="loop=loop=-1:size=1"
-FF="ffmpeg -hide_banner -loglevel error -y"
+FF="ffmpeg -nostdin -hide_banner -loglevel error -y" # -nostdin: never read the keyboard or pasted commands
 SDR="-c:v libx264 -preset slow -crf 4 -profile:v high -level 5.1 -pix_fmt yuv420p \
  -color_range tv -colorspace bt709 -color_primaries bt709 -color_trc bt709 -movflags +faststart"
 HDR="-c:v libx265 -preset medium -crf 4 -pix_fmt yuv420p10le -tag:v hvc1 -movflags +faststart \
@@ -53,7 +53,7 @@ sdr sdr-gray-ramp "16+trunc(X*220/W)"
 # 11-step greyscale, 0% to 100% in 10% steps: tint (white balance) and gamma by eye.
 sdr sdr-gray-steps "$(columns 16 38 60 82 104 126 147 169 191 213 235)"
 
-echo "SDR motion clips"
+echo "SDR motion clips (the slow part: a few minutes)"
 MOTION=$(echo "$SDR" | sed 's/-crf 4/-crf 16/') # moving detail at CRF 4 would be gigabytes
 MDUR=$((DUR < 30 ? DUR : 30))
 $FF -f lavfi -i "testsrc2=s=${W}x$H:r=50:d=$MDUR,scroll=horizontal=0.0015,format=yuv420p" $MOTION "$OUT/sdr-motion-pan-50p.mp4"

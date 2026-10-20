@@ -49,7 +49,8 @@ The serial number and Netflix ESN are left out of this lab on purpose; nothing h
 | ARC / eARC port | **HDMI 3** is the only port with ARC | Plug a soundbar or AV receiver into HDMI 3 |
 | Thermal status | 0 (normal) | — |
 | `animator_duration_scale` | 0.6, although `sony-bravia.txt` sets 0 | Something on the TV puts it back. It only affects menu animations; `check.sh --fix` sets it again |
-| REST API (port 80) | **Connection refused** with no key | IP control was probably off at the time; see `../reports/compatibility.md` |
+| REST API (port 80) | **Connection refused**, even with IP control on | No REST API on this TV; see `../reports/compatibility.md` |
+| Simple IP control (port 20060) | Answers | Sony's basic network control is on |
 
 ## Seen on this TV (owner's `pm list packages -e`, 2026-10-20)
 
