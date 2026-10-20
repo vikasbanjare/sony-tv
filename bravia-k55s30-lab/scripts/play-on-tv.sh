@@ -35,5 +35,9 @@ if ! adb -s "$TV" shell ls "$DIR/$CLIP" >/dev/null 2>&1; then
 fi
 
 echo "Opening $CLIP on the TV…"
-adb -s "$TV" shell am start -a android.intent.action.VIEW -d "file://$DIR/$CLIP" -t video/mp4 >/dev/null
+# Home first, then a fresh task: if a player is still open it would otherwise just get the intent
+# ("delivered to currently running top-most instance") and keep showing the old, finished clip.
+adb -s "$TV" shell input keyevent KEYCODE_HOME
+sleep 1
+adb -s "$TV" shell am start -a android.intent.action.VIEW -f 0x10008000 -d "file://$DIR/$CLIP" -t video/mp4 >/dev/null
 echo "It should be playing now. Press Back on the remote to stop."
