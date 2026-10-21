@@ -50,7 +50,7 @@ brew install git android-platform-tools ffmpeg mpv     # only what it says is mi
 says what each one is and whether it applies. Don't run their code against the TV.
 
 **3. Read the TV (optional).** Over Wi-Fi, the same way as `install.sh` and `check.sh` in this repo: USB debugging on
-(see [`SONY.md`](../SONY.md)), Mac and TV on the same Wi-Fi, TV's IP from Settings > Network & Internet.
+(see [`docs/sony-bravia.md`](../docs/sony-bravia.md)), Mac and TV on the same Wi-Fi, TV's IP from Settings > Network & Internet.
 ```sh
 sh scripts/adb-diagnostics.sh <TV_IP>             # first time: press Allow on the TV, then run it again
 sh scripts/bravia-rest-probe.sh <TV_IP>           # turn on Settings > Network & Internet > IP control first

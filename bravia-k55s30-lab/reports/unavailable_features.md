@@ -23,7 +23,7 @@ measurements on this exact model show it is safe.
 | Service menu white balance, backlight drive, panel or EEPROM edits | Can damage the panel or shorten LED life; no reliable way back. tv-calibration's service-menu steps are for other brands and are skipped |
 | Root, unlocked bootloader, `/system` or SELinux changes | Breaks security updates and DRM (Netflix/Prime drop to low resolution or stop working) |
 | Cross-model or downgraded firmware, patched OTAs | Can brick the TV. Only the Sony-listed update for K-55S30 through the TV's own updater (`firmware.md`) |
-| Turning off thermal, power, DRM, HDMI, update or other core Sony packages | The TV relies on them. The repo's `sony-bravia.txt` only turns off promos and demos |
+| Turning off thermal, power, DRM, HDMI, update or other core Sony packages | The TV relies on them. The repo's `cleanup/sony-bravia.txt` only turns off promos and demos |
 | JamesDSPManager | Needs root (Magisk) |
 | RootlessJamesDSP | Not prohibited by itself, but it can't reach apps that block audio capture (streaming apps), adds latency (lip sync), and its workaround patches apps to remove capture restrictions, which is off limits. Not installed |
 | Forcing HDR on SDR content, or a fake HDR signal | Wrong tone curve; looks brighter but loses detail and colour accuracy |

@@ -77,7 +77,7 @@ If holding a remote button only moves one step, check **Settings → Accessibili
 
 ## Picture and sound
 
-For the K-55S30, [`bravia-k55s30-lab/`](bravia-k55s30-lab/README.md) is a step-by-step lab for tuning picture,
+For the K-55S30, [`bravia-k55s30-lab/`](../bravia-k55s30-lab/README.md) is a step-by-step lab for tuning picture,
 HDR and sound with Sony's own settings: test clips, read-only TV checks, a test log and reports.
 
 ## Keep it working / undo

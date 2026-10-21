@@ -48,7 +48,7 @@ The serial number and Netflix ESN are left out of this lab on purpose; nothing h
 | Audio devices | TV speakers only; no HDMI audio system connected | `encoded_surround_output` is unset (Auto) |
 | ARC / eARC port | **HDMI 3** is the only port with ARC | Plug a soundbar or AV receiver into HDMI 3 |
 | Thermal status | 0 (normal) | — |
-| `animator_duration_scale` | 0.6, although `sony-bravia.txt` sets 0 | Something on the TV puts it back. It only affects menu animations; `check.sh --fix` sets it again |
+| `animator_duration_scale` | 0.6 at the time (the cleanup list then set animations to 0) | Animations must stay **on**: with them off, Apple TV stalls. The cleanup list no longer turns them off |
 | REST API (port 80) | **Connection refused**, even with IP control on | No REST API on this TV; see `../reports/compatibility.md` |
 | Simple IP control (port 20060) | Answers | Sony's basic network control is on |
 
@@ -61,7 +61,7 @@ The serial number and Netflix ESN are left out of this lab on purpose; nothing h
 | `com.dolby.android.audio.service` | Dolby audio processing service (Dolby Audio / Atmos decoding) |
 | `com.sony.dtv.ecodashboard` | Eco Dashboard (Power saving, light sensor) |
 | `com.sony.dtv.sonyservicemode` | Sony's service menu app. **Never open or change it** (see `../reports/unavailable_features.md`) |
-| `com.sony.dtv.smarthelp`, `com.sony.dtv.helpguidecontents` | Help screen and manual. Turned off by `sony-bravia.txt`; Help is where the firmware number is shown |
+| `com.sony.dtv.smarthelp`, `com.sony.dtv.helpguidecontents` | Help screen and manual. Turned off by `cleanup/sony-bravia.txt`; Help is where the firmware number is shown |
 
 Not published by Sony and not measured here: peak brightness (nits), native contrast, panel type (VA or IPS).
 This lab does not guess them.
