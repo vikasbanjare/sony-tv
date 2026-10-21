@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Skip: presses "Skip Intro", "Skip Recap" and "Next Episode" for you, in any app that shows them.
+     See skip.sh. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.petcat.skip" android:versionCode="1" android:versionName="1.0">
+    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <application android:label="Skip" android:allowBackup="false"
+        android:theme="@android:style/Theme.Translucent.NoTitleBar">
+        <activity android:name="com.ansub.tvhome.SkipActivity" android:exported="true"
+            android:excludeFromRecents="true" android:noHistory="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <service android:name="com.ansub.tvhome.SkipService" android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:label="Skip intros and recaps">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/skip" />
+        </service>
+    </application>
+</manifest>

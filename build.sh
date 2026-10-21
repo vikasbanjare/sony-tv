@@ -2,6 +2,7 @@
 # Builds both apps into out/:
 #   out/tvhome.apk   the home screen with the clock, the sky and the cat (install.sh)
 #   out/petcat.apk   just the cat, over the TV's own home screen (cat.sh)
+#   out/skip.apk     presses Skip Intro / Skip Recap / Next Episode for you (skip.sh)
 # Needs Java 17 and the Android SDK (platform 34, build-tools 34).
 #   macOS:  brew install openjdk@17 && brew install --cask android-commandlinetools
 #           sdkmanager "platforms;android-34" "build-tools;34.0.0"
@@ -32,11 +33,13 @@ KS=${KEYSTORE:-key.jks}; PASS=${KEYSTORE_PASS:-tvhome123}
 [ -f "$KS" ] || keytool -genkeypair -keystore "$KS" -storepass "$PASS" -keypass "$PASS" -alias tvhome \
   -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=tvhome" >/dev/null 2>&1
 
-# build <name> <manifest> <java files...>
+# build <name> <manifest> <java files...>   (RES=<dir> adds compiled resources)
 build() {
   name=$1; manifest=$2; shift 2
   w=out/$name; rm -rf "$w"; mkdir -p "$w/classes" "$w/dex"
-  "$BT/aapt2" link -o "$w/base.apk" -I "$JAR" --manifest "$manifest" --min-sdk-version 21 --target-sdk-version 34
+  res=
+  if [ -n "$RES" ]; then "$BT/aapt2" compile --dir "$RES" -o "$w/res.zip"; res=$w/res.zip; fi
+  "$BT/aapt2" link -o "$w/base.apk" -I "$JAR" --manifest "$manifest" --min-sdk-version 21 --target-sdk-version 34 $res
   # shellcheck disable=SC2068 # javac and d8 want one argument per file, so the list is split on purpose
   javac -nowarn -Xlint:-options -encoding UTF-8 -source 1.8 -target 1.8 -bootclasspath "$JAR:$BT/core-lambda-stubs.jar" \
     -d "$w/classes" $@
@@ -50,6 +53,9 @@ build() {
 
 S=src/com/ansub/tvhome
 # The home screen: everything except the overlay's own classes.
-build tvhome AndroidManifest.xml $(find src out/gen -name "*.java" | grep -v -E 'Pet(Service|Activity|Boot)\.java')
+build tvhome AndroidManifest.xml $(find src out/gen -name "*.java" | grep -v -E '(Pet(Service|Activity|Boot)|Skip(Service|Activity))\.java')
 # Just the cat: her drawing and behaviour, her coat, and the overlay service around them.
 build petcat overlay/AndroidManifest.xml $S/ClockCat.java $S/Coat.java $S/Alive.java $S/PetService.java $S/PetActivity.java $S/PetBoot.java
+# Skip: presses Skip Intro / Skip Recap / Next Episode in streaming apps.
+RES=skip/res build skip skip/AndroidManifest.xml $S/SkipService.java $S/SkipActivity.java
+RES=

@@ -99,7 +99,23 @@ python3 tools/catify.py mycat/cat.jpg --coat tabby --eyes green --name Mishti
 
 It writes `mycat/cat.json` with her fur, stripe, patch, white and eye colours, and shows them. Not quite right? Edit the file. Then run `cat.sh` or `install.sh` again and she changes. More on this in [mycat/README.md](mycat/README.md).
 
-## 4. Clean up the TV (optional)
+## 4. Skip intros, recaps and credits
+
+```sh
+sh skip.sh <TV_IP>
+```
+
+From then on, when an app shows **Skip Intro**, **Skip Recap**, **Skip Credits** or **Next Episode**, it's pressed for you the moment it appears. It watches the screen's buttons through Android's accessibility layer, so it costs nothing while you watch and never touches the remote.
+
+It works in any app that shows its buttons to Android: Apple TV, Prime Video, Hotstar, SonyLIV, Zee5, Crunchyroll and most others. Netflix and YouTube draw their own screens and show nothing, so there it can't help. To check an app, wait for its Skip Intro to appear and run `sh skip.sh <TV_IP> check`.
+
+```sh
+sh skip.sh <TV_IP> next off   # only intros, recaps and credits; leave "Next Episode" to you
+sh skip.sh <TV_IP> off        # pause it
+sh skip.sh <TV_IP> remove     # uninstall
+```
+
+## 5. Clean up the TV (optional)
 
 Most TVs come with promos, demos, "help" apps and things that watch what you watch. [`cleanup/`](cleanup) has lists of what's safe to turn off per brand. Read the list, delete any line for something you use, then:
 
@@ -111,7 +127,7 @@ Run it again whenever a TV update turns something back on. Apps are turned off, 
 
 ## Build it yourself
 
-`build.sh` builds both apps with plain `aapt2`, `javac`, `d8` and `apksigner`, no Gradle. Needs Java 17 and the Android SDK (platform 34, build-tools 34). `release/` has ready-made builds.
+`build.sh` builds all three apps with plain `aapt2`, `javac`, `d8` and `apksigner`, no Gradle. Needs Java 17 and the Android SDK (platform 34, build-tools 34). `release/` has ready-made builds.
 
 ## Help
 
