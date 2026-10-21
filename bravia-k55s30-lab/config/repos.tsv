@@ -1,0 +1,9 @@
+# name	url	commit (checked 2026-10-20)	licence	role
+sony-bravia-adb-scripts	https://github.com/supermarsx/sony-bravia-adb-scripts	aec57704c997ebade44ce1e615f569ce43fdb726	MIT	ADB remote/automation (PowerShell 7)
+Bravia-REST-API	https://github.com/cmos486/Bravia-REST-API	14206d7ef1adcb295af6e728f4cbc508902b1fa2	MIT	Home Assistant integration for the Sony Pro REST API
+mpv	https://github.com/mpv-player/mpv	6a262d11f63733d37e3ee6d5fafcb1be1ef83952	GPL-2.0+/LGPL-2.1+	Mac video player (install with brew, this clone is for reading)
+libplacebo	https://github.com/haasn/libplacebo	285d1cc8af2ab79b72ac662eb09736de8c12392b	LGPL-2.1+	Rendering library inside mpv gpu-next
+tv-calibration	https://github.com/jweber93/tv-calibration	b074f2e0712343717665cfff7e6978e37a642485	MIT	Guided meter-based calibration web app
+displaycal-py3	https://github.com/eoyilmaz/displaycal-py3	06317b851c55b79e78aeafa05b24179eca3602b2	GPL-3.0	Profiling GUI on top of ArgyllCMS
+RootlessJamesDSP	https://github.com/timschneeb/RootlessJamesDSP	60d25ae8a53c6f4691c090673df290a73c6b6357	GPL-3.0	Android audio DSP without root (research only)
+JamesDSPManager	https://github.com/james34602/JamesDSPManager	5aed6a4a9a4cb109e2d8246e103bb1578cb83cfb	GPL-2.0 (Main/LICENSE)	Rooted Android audio DSP (research only, not used)

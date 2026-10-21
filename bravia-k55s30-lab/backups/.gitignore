@@ -1,0 +1,4 @@
+# Anything copied off the TV or out of the menus before a change (photos, exports).
+# Kept out of git: it can contain personal data.
+*
+!.gitignore
