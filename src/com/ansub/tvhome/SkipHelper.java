@@ -119,6 +119,7 @@ public final class SkipHelper {
     // ---- Shell-only powers, through hidden APIs ------------------------------------------------
 
     // A small screenshot straight from the compositor: no permission dialog for the shell.
+    static boolean protectedSaid;
     static Bitmap capture() {
         try {
             Class<?> sc = Class.forName("android.view.SurfaceControl");
@@ -137,6 +138,13 @@ public final class SkipHelper {
                 builderCls.getMethod("setSize", int.class, int.class).invoke(builder, W, H);
                 Object args = builderCls.getMethod("build").invoke(builder);
                 Object shot = sc.getMethod("captureDisplay", argsCls).invoke(null, args);
+                // Null while protected (DRM) video is on screen: Android refuses the shell any screenshot.
+                if (shot == null) {
+                    if (!protectedSaid) System.out.println("capture: screen is protected (DRM video), can't look");
+                    protectedSaid = true;
+                    return null;
+                }
+                protectedSaid = false;
                 hw = (Bitmap) shot.getClass().getMethod("asBitmap").invoke(shot);
             } catch (ClassNotFoundException e) { // Android 10, 11
                 Method m;

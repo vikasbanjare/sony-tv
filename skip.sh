@@ -52,13 +52,15 @@ case "$WHAT" in
     [ -n "$APKP" ] || { echo "Skip isn't installed: sh skip.sh $TARGET" >&2; exit 1; }
     echo "Taking a look at the screen…"
     sh_tv "CLASSPATH=$APKP app_process /system/bin com.ansub.tvhome.SkipHelper snap /sdcard/skip-snap.png"
-    adb -s "$TV" pull /sdcard/skip-snap.png skip-snap.png >/dev/null && sh_tv rm -f /sdcard/skip-snap.png >/dev/null
+    adb -s "$TV" pull /sdcard/skip-snap.png skip-snap.png >/dev/null 2>&1 || { echo "Nothing saved: the TV wouldn't share the screen." >&2; exit 1; }
+    sh_tv rm -f /sdcard/skip-snap.png >/dev/null
     echo "Saved skip-snap.png (the red box is where it looks for the skip pill)."
     exit 0 ;;
   status)
     echo "Last from the pixel-watcher:"
     adb -s "$TV" logcat -d -s Skip:* 2>/dev/null | tail -8 | sed 's/^/  /'
-    if sh_tv "ps -A -o ARGS 2>/dev/null | grep -q SkipHelper"; then echo "Watcher: running"
+    # sh_tv's exit code is tr's, so look at what grep printed. [S] keeps grep from finding itself.
+    if [ -n "$(sh_tv "ps -A -o ARGS 2>/dev/null | grep '[S]kipHelper'")" ]; then echo "Watcher: running"
     else echo "Watcher: not running. Look at the TV: it may be asking \"Allow debugging?\" (tick Always allow, press Allow)."; fi
     exit 0 ;;
   off) disable; echo "Skip is off. 'sh skip.sh $TARGET' turns it back on."; exit 0 ;;
