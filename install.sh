@@ -5,8 +5,8 @@
 #   sh install.sh <TV_IP> "com.netflix.ninja,com.google.android.youtube.tv"
 #   sh install.sh <TV_IP> "" "bluetooth,sound,picture"   adds settings shortcuts by the clock
 #
-# Uses out/tvhome.apk if you built it, then release/tvhome.apk (this repo's build with the living
-# sky), otherwise downloads the latest upstream release.
+# Uses out/tvhome.apk if you built it, otherwise release/tvhome.apk from this repo.
+# If mycat/cat.json exists (see mycat/README.md), the cat gets your cat's colours and name.
 set -e
 cd "$(dirname "$0")"
 
@@ -35,11 +35,7 @@ esac
 
 APK=out/tvhome.apk
 [ -f "$APK" ] || APK=release/tvhome.apk
-if [ ! -f "$APK" ]; then
-  APK=$(mktemp -d)/tvhome.apk
-  echo "Downloading the home screen…"
-  curl -fsSL -o "$APK" https://github.com/Ansub/tv-detox/releases/latest/download/tvhome.apk
-fi
+[ -f "$APK" ] || { echo "No tvhome.apk: run build.sh, or pull the repo again for release/tvhome.apk." >&2; exit 1; }
 
 echo "Installing… If your TV shows a Google Play Protect message, follow it on the TV to allow the install."
 if ! out=$(adb -s "$TV" install -r "$APK" 2>&1); then
@@ -50,11 +46,19 @@ if ! out=$(adb -s "$TV" install -r "$APK" 2>&1); then
   esac
 fi
 
-if [ -n "$APPS" ] || [ -n "$QUICK" ]; then
+# Your cat's colours and name, from mycat/cat.json if there is one (see mycat/README.md).
+COAT=""; NAME=""
+if [ -f mycat/cat.json ]; then
+  COAT=$(grep -o '"coat"[[:space:]]*:[[:space:]]*"[^"]*"' mycat/cat.json | sed 's/.*:[[:space:]]*"\(.*\)"/\1/')
+  NAME=$(grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' mycat/cat.json | sed 's/.*:[[:space:]]*"\(.*\)"/\1/')
+fi
+if [ -n "$APPS" ] || [ -n "$QUICK" ] || [ -n "$COAT" ] || [ -n "$NAME" ]; then
   # The stamp makes the app apply this list once, even if Android later replays this start.
   set -- --es stamp "$(date +%s)"
   [ -n "$APPS" ] && set -- "$@" --es apps "\"$APPS\""
   [ -n "$QUICK" ] && set -- "$@" --es quick "\"$QUICK\""
+  [ -n "$COAT" ] && set -- "$@" --es coat "\"$COAT\""
+  [ -n "$NAME" ] && set -- "$@" --es name "\"$NAME\""
   adb -s "$TV" shell am start -n com.ansub.tvhome/.MainActivity "$@" >/dev/null
 fi
 

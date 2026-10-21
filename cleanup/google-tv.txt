@@ -1,0 +1,13 @@
+# Google's own extras on a Google TV. Apply or re-apply after an update with:
+#   sh check.sh <TV_IP> --fix cleanup/google-tv.txt
+# Delete a line (or put # in front) to keep that app on. Turn one back on with:
+#   adb shell pm enable <package>
+
+# "Send feedback" prompts
+off com.google.android.feedback
+
+# Play Games (its sign-in nags; you can still install games)
+off com.google.android.play.games
+
+# Google TV's screensaver uses about 200 MB. Leave it on if your TV is OLED (it helps prevent burn-in).
+# off com.google.android.apps.tv.dreamx

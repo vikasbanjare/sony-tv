@@ -183,10 +183,11 @@ public class MainActivity extends Activity {
         header.setGravity(Gravity.BOTTOM);
         shownLocale = java.util.Locale.getDefault();
         clock = new ClockCat(this, light);
+        clock.setCoat(Coat.parse(getSharedPreferences(PREFS, 0).getString("coat", null)));
         clock.setTextSize(px(CLOCK_BIG));
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, -2);
         cp.leftMargin = -clock.glowPad(); // the digits line up with the apps; the glow sticks out
-        header.addView(clock, cp);
+        header.addView(clock.slot(), cp); // the clock itself is drawn over the page, so the cat can roam
 
         View rule = new View(this);
         rule.setBackgroundColor(0x33FFFFFF);
@@ -222,6 +223,7 @@ public class MainActivity extends Activity {
         alignInfo();
         refreshAlive();
         root.addView(header, at(px(MARGIN), px(HEADER_TOP), -2, -2));
+        root.addView(clock, new FrameLayout.LayoutParams(-1, -1));
 
         moveHint = text(px(24), 0xA8FFFFFF, regular);
         moveHint.setText(Strings.t("Use the arrows to move it, then press OK"));
@@ -273,7 +275,8 @@ public class MainActivity extends Activity {
         String quick = intent == null ? null : intent.getStringExtra("quick");
         String name = intent == null ? null : intent.getStringExtra("name");
         String place = intent == null ? null : intent.getStringExtra("place");
-        if (apps == null && quick == null && name == null && place == null) return false;
+        String coat = intent == null ? null : intent.getStringExtra("coat");
+        if (apps == null && quick == null && name == null && place == null && coat == null) return false;
         SharedPreferences prefs = getSharedPreferences(PREFS, 0);
         String stamp = intent.getStringExtra("stamp");
         if (stamp != null && stamp.equals(prefs.getString("stamp", null))) return false;
@@ -289,7 +292,7 @@ public class MainActivity extends Activity {
             if (quick.isEmpty() || quick.equalsIgnoreCase("none")) e.remove("quick");
             else e.putString("quick", quick);
         }
-        for (String[] kv : new String[][] {{"name", name}, {"place", place}}) {
+        for (String[] kv : new String[][] {{"name", name}, {"place", place}, {"coat", coat}}) {
             if (kv[1] == null) continue;
             String v = kv[1].trim();
             if (v.isEmpty() || v.equalsIgnoreCase("none")) e.remove(kv[0]);
@@ -297,6 +300,7 @@ public class MainActivity extends Activity {
         }
         e.apply();
         if (place != null) { weatherAt = 0; weatherTried = 0; weather = null; } // look again for the new place
+        if (coat != null && clock != null) clock.setCoat(Coat.parse(prefs.getString("coat", null)));
         sceneKey = null;
         dirty = true;
         return true;
@@ -414,7 +418,7 @@ public class MainActivity extends Activity {
                 f.getLocationOnScreen(at);
                 lookAt = at[0] + f.getWidth() / 2f;
             }
-            clock.poke(lookAt - me[0]);
+            clock.poke(lookAt - me[0], f);
         }
         return handled;
     }
@@ -550,6 +554,8 @@ public class MainActivity extends Activity {
         int bottomTop = gridTop + rows * px(ROW_STEP);
         ((FrameLayout.LayoutParams) moveHint.getLayoutParams()).topMargin = gridTop - px(48); // in the gap under the clock
         root.setMinimumHeight(bottomTop + h + px(MARGIN));
+        // The clock's surface covers the page, so the cat can get to every tile.
+        clock.setLayoutParams(new FrameLayout.LayoutParams(getResources().getDisplayMetrics().widthPixels, bottomTop + h + px(MARGIN)));
 
         for (String pkg : apps) {
             Intent li = launchIntent(pm, pkg);
@@ -601,6 +607,7 @@ public class MainActivity extends Activity {
         View restore = null;
         for (View t : tiles) if (t.getTag().equals(want)) restore = t;
         if (restore != null) restore.requestFocus();
+        clock.setTiles(tiles.toArray(new View[0]));
     }
 
     private void addTile(ViewGroup parent, final String key, String label, Drawable banner, int[] lineIcon, Drawable appIcon,

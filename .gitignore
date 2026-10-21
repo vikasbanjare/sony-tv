@@ -4,3 +4,6 @@ key.jks
 .DS_Store
 .idea
 !release/tvhome.apk
+mycat/cat.*
+!mycat/README.md
+!release/petcat.apk
