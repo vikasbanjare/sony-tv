@@ -8,3 +8,4 @@ mycat/cat.*
 !mycat/README.md
 !release/petcat.apk
 !release/skip.apk
+shots/
