@@ -58,12 +58,16 @@ case "$WHAT" in
     app=$(printf '%s' "$dump" | grep -o 'package="[^"]*"' | sort | uniq -c | sort -rn | head -1 | sed 's/.*package="\([^"]*\)"/\1/')
     hits=$(printf '%s' "$dump" | grep -o -i -E '(text|content-desc)="[^"]*(skip|next episode)[^"]*"' | sort -u || true)
     [ -n "$app" ] && echo "App in front: $app"
+    labels=$(printf '%s' "$dump" | grep -o -E '(text|content-desc)="[^"]+"' | sed 's/^[a-z-]*="//; s/"$//' | grep -v '^$' | sort -u | head -12 | paste -sd'|' - || true)
     if [ -n "$hits" ]; then
       echo "This app shows its buttons. Skip will work here:"; printf '%s\n' "$hits" | sed 's/^/  /'
     elif [ -z "$dump" ] || ! printf '%s' "$dump" | grep -q 'class='; then
       echo "This app draws its own screen and shows nothing to Android. Skip can't press anything here."
+    elif [ -z "$labels" ]; then
+      echo "This app shows its layout but no words from it. Skip can't see its buttons here."
     else
       echo "No skip button on screen right now. Start an episode, wait for 'Skip Intro' to show, then run this again."
+      echo "What it can see now: $labels"
     fi
     exit 0 ;;
 esac
