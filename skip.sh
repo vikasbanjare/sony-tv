@@ -6,6 +6,8 @@
 #   sh skip.sh <TV_IP> off        turn off (stays installed)
 #   sh skip.sh <TV_IP> remove     uninstall
 #   sh skip.sh <TV_IP> check      while a skip button is on screen: will it work in this app?
+#   sh skip.sh <TV_IP> snap       save what the pixel-watcher sees right now (skip-snap.png)
+#   sh skip.sh <TV_IP> status     is the pixel-watcher running, and what has it done lately?
 #   sh skip.sh <TV_IP> next off   only intros, recaps and credits, never "Next Episode"
 set -e
 cd "$(dirname "$0")"
@@ -45,6 +47,20 @@ disable() {
 }
 
 case "$WHAT" in
+  snap)
+    APKP=$(sh_tv pm path "$PKG" | sed 's/^package://' | head -1)
+    [ -n "$APKP" ] || { echo "Skip isn't installed: sh skip.sh $TARGET" >&2; exit 1; }
+    echo "Taking a look at the screen…"
+    sh_tv "CLASSPATH=$APKP app_process /system/bin com.ansub.tvhome.SkipHelper snap /sdcard/skip-snap.png"
+    adb -s "$TV" pull /sdcard/skip-snap.png skip-snap.png >/dev/null && sh_tv rm -f /sdcard/skip-snap.png >/dev/null
+    echo "Saved skip-snap.png (the red box is where it looks for the skip pill)."
+    exit 0 ;;
+  status)
+    echo "Last from the pixel-watcher:"
+    adb -s "$TV" logcat -d -s Skip:* 2>/dev/null | tail -8 | sed 's/^/  /'
+    if sh_tv "ps -A -o ARGS 2>/dev/null | grep -q SkipHelper"; then echo "Watcher: running"
+    else echo "Watcher: not running. Look at the TV: it may be asking \"Allow debugging?\" (tick Always allow, press Allow)."; fi
+    exit 0 ;;
   off) disable; echo "Skip is off. 'sh skip.sh $TARGET' turns it back on."; exit 0 ;;
   remove) disable; adb -s "$TV" uninstall "$PKG" >/dev/null && echo "Removed."; exit 0 ;;
   next)
@@ -84,4 +100,7 @@ if ! out=$(adb -s "$TV" install -r "$APK" 2>&1); then
 fi
 enable
 echo "Done. Intros, recaps and credits get skipped as they appear."
-echo "Not sure it works in an app? With its 'Skip Intro' on screen, run: sh skip.sh $TARGET check"
+echo
+echo "Now look at the TV. It asks \"Allow debugging?\" for Skip itself: tick \"Always allow\" and press Allow."
+echo "That lets it skip in Netflix and Apple TV too, and it's remembered across restarts."
+echo "Check with: sh skip.sh $TARGET status"

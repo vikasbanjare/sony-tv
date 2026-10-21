@@ -107,7 +107,13 @@ sh skip.sh <TV_IP>
 
 From then on, when an app shows **Skip Intro**, **Skip Recap**, **Skip Credits** or **Next Episode**, it's pressed for you the moment it appears. It watches the screen's buttons through Android's accessibility layer, so it costs nothing while you watch and never touches the remote.
 
-It works in any app that shows its buttons to Android: Apple TV, Prime Video, Hotstar, SonyLIV, Zee5, Crunchyroll and most others. Netflix and YouTube draw their own screens and show nothing, so there it can't help. To check an app, wait for its Skip Intro to appear and run `sh skip.sh <TV_IP> check`.
+Two ways, side by side. In apps that show their buttons to Android (Prime Video, Hotstar, SonyLIV, Zee5, Crunchyroll…) it presses the button directly. Netflix, Apple TV and YouTube draw their own screens and show nothing, so for those it uses the TV's own adb (*Network debugging*, the same thing your laptop uses): after the install, the TV asks **"Allow debugging?"** for Skip itself. Tick *Always allow* and press **Allow**, once; it's remembered across restarts. From then on, while one of those apps is playing, it takes a tiny screenshot once a second, spots the highlighted Skip pill in the bottom-right corner, and presses OK.
+
+```sh
+sh skip.sh <TV_IP> status     # is the pixel-watcher running, and what did it press lately?
+sh skip.sh <TV_IP> snap       # save what it sees right now, to check where it's looking
+sh skip.sh <TV_IP> check      # with a Skip button on screen: does this app show its buttons?
+```
 
 ```sh
 sh skip.sh <TV_IP> next off   # only intros, recaps and credits; leave "Next Episode" to you

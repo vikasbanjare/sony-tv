@@ -53,9 +53,9 @@ build() {
 
 S=src/com/ansub/tvhome
 # The home screen: everything except the overlay's own classes.
-build tvhome AndroidManifest.xml $(find src out/gen -name "*.java" | grep -v -E '(Pet(Service|Activity|Boot)|Skip(Service|Activity))\.java')
+build tvhome AndroidManifest.xml $(find src out/gen -name "*.java" | grep -v -E '(Pet(Service|Activity|Boot)|Skip(Service|Activity|Helper)|Adb)\.java')
 # Just the cat: her drawing and behaviour, her coat, and the overlay service around them.
 build petcat overlay/AndroidManifest.xml $S/ClockCat.java $S/Coat.java $S/Alive.java $S/PetService.java $S/PetActivity.java $S/PetBoot.java
 # Skip: presses Skip Intro / Skip Recap / Next Episode in streaming apps.
-RES=skip/res build skip skip/AndroidManifest.xml $S/SkipService.java $S/SkipActivity.java
+RES=skip/res build skip skip/AndroidManifest.xml $S/SkipService.java $S/SkipActivity.java $S/SkipHelper.java $S/Adb.java
 RES=

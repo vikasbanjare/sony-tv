@@ -4,6 +4,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.petcat.skip" android:versionCode="1" android:versionName="1.0">
     <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34" />
+    <!-- Only to reach the TV's own adb at 127.0.0.1:5555 (see SkipService). Nothing leaves the TV. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <application android:label="Skip" android:allowBackup="false"

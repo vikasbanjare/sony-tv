@@ -39,9 +39,16 @@ public final class SkipService extends AccessibilityService {
     private long lastAt;
     private String lastText = "";
 
+    private Thread link;
+    private volatile boolean running;
+
     @Override
     protected void onServiceConnected() {
         load();
+        running = true;
+        link = new Thread(this::keepHelperRunning, "skip-link");
+        link.setDaemon(true);
+        link.start();
         AccessibilityServiceInfo info = getServiceInfo();
         if (info == null) info = new AccessibilityServiceInfo();
         info.eventTypes = AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED | AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
@@ -125,4 +132,49 @@ public final class SkipService extends AccessibilityService {
     }
 
     @Override public void onInterrupt() {}
+
+    @Override
+    public boolean onUnbind(android.content.Intent intent) {
+        running = false;
+        if (link != null) link.interrupt();
+        return super.onUnbind(intent);
+    }
+
+    // For apps that show nothing to accessibility (Netflix, Apple TV): connects to the TV's own
+    // adb (Network debugging) and keeps SkipHelper running there with the shell's powers. It
+    // reconnects when the link drops. The TV asks "Allow debugging?" once for this app.
+    private void keepHelperRunning() {
+        int wait = 5000;
+        while (running) {
+            Adb adb = null;
+            try {
+                adb = new Adb(this);
+                // The first time, the TV shows "Allow debugging?": give the person two minutes.
+                if (!adb.connect("127.0.0.1", 5555, 120000)) {
+                    android.util.Log.w("Skip", "adb refused; is Network debugging on, and was it allowed on the TV?");
+                    adb.close();
+                    Thread.sleep(60000);
+                    continue;
+                }
+                String apk = getApplicationInfo().sourceDir;
+                android.util.Log.i("Skip", "connected to the TV's adb; starting the helper");
+                Adb.Stream s = adb.open("shell:CLASSPATH=" + apk + " app_process /system/bin com.ansub.tvhome.SkipHelper");
+                wait = 5000;
+                byte[] chunk;
+                while (running && (chunk = s.read()) != null) {
+                    String text = new String(chunk, "UTF-8").trim();
+                    if (!text.isEmpty()) android.util.Log.i("Skip", text);
+                }
+                android.util.Log.w("Skip", "helper ended");
+            } catch (InterruptedException e) {
+                return;
+            } catch (Exception e) {
+                android.util.Log.w("Skip", "adb: " + e);
+            } finally {
+                if (adb != null) adb.close();
+            }
+            try { Thread.sleep(wait); } catch (InterruptedException e) { return; }
+            wait = Math.min(wait * 2, 120000);
+        }
+    }
 }
