@@ -72,21 +72,30 @@ public final class SkipService extends AccessibilityService {
         next = p.getBoolean("next", true);
     }
 
+    // The words a skip button contains, for the framework's own indexed search (much cheaper than
+    // walking the whole screen). "Skip Intro", "Skip Recap", "Next Episode"... all contain one of
+    // these; the SKIP pattern then confirms the exact label.
+    private static final String[] WORDS = {"skip", "next episode", "play next"};
+
     @Override
     public void onAccessibilityEvent(AccessibilityEvent e) {
         CharSequence pkg = e.getPackageName();
         if (pkg == null || !apps.contains(pkg.toString())) return;
         long t = SystemClock.uptimeMillis();
-        if (t - lastAt < 400) return; // the same screen, a moment later
+        // Once a second at most. During playback an app fires many screen-change events a second;
+        // doing real work on each one stutters the video on a small TV, so we rate-limit hard and
+        // never walk the whole screen.
+        if (t - lastAt < 1000) return;
+        lastAt = t;
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root == null) return;
         try {
-            AccessibilityNodeInfo hit = find(root, 0);
+            AccessibilityNodeInfo hit = findByText(root);
             if (hit != null) {
                 String text = label(hit);
-                // The same button again within a few seconds means the press didn't take: leave it.
-                if (text.equalsIgnoreCase(lastText) && t - lastAt < 6000) return;
-                if (press(hit)) { lastAt = t; lastText = text; }
+                if (!(text.equalsIgnoreCase(lastText) && t - lastPress < 6000)) {
+                    if (press(hit)) { lastPress = t; lastText = text; }
+                }
                 hit.recycle();
             }
         } finally {
@@ -94,28 +103,35 @@ public final class SkipService extends AccessibilityService {
         }
     }
 
+    private long lastPress;
+
     private static String label(AccessibilityNodeInfo n) {
         CharSequence s = n.getText();
         if (s == null || s.length() == 0) s = n.getContentDescription();
         return s == null ? "" : s.toString();
     }
 
-    // The first skip-type button on screen, searching at most a few hundred nodes.
-    private AccessibilityNodeInfo find(AccessibilityNodeInfo n, int depth) {
-        if (n == null || depth > 24) return null;
-        String text = label(n);
-        if (!text.isEmpty() && text.length() < 24 && SKIP.matcher(text).matches()) {
-            if (next || !NEXT.matcher(text).find()) {
-                if (n.isVisibleToUser()) return AccessibilityNodeInfo.obtain(n);
+    // Uses the framework's indexed text search for the skip words, then confirms the exact label.
+    // This asks Android for just the matching nodes instead of reading the whole screen ourselves.
+    private AccessibilityNodeInfo findByText(AccessibilityNodeInfo root) {
+        for (String word : WORDS) {
+            java.util.List<AccessibilityNodeInfo> found;
+            try { found = root.findAccessibilityNodeInfosByText(word); } catch (Exception e) { continue; }
+            if (found == null) continue;
+            AccessibilityNodeInfo keep = null;
+            for (AccessibilityNodeInfo n : found) {
+                if (n == null) continue;
+                if (keep == null) {
+                    String text = label(n);
+                    if (!text.isEmpty() && text.length() < 24 && SKIP.matcher(text).matches()
+                            && (next || !NEXT.matcher(text).find()) && n.isVisibleToUser()) {
+                        keep = n;
+                        continue; // don't recycle the one we return
+                    }
+                }
+                n.recycle();
             }
-        }
-        int count = n.getChildCount();
-        for (int i = 0; i < count && i < 60; i++) {
-            AccessibilityNodeInfo c = n.getChild(i);
-            if (c == null) continue;
-            AccessibilityNodeInfo hit = find(c, depth + 1);
-            c.recycle();
-            if (hit != null) return hit;
+            if (keep != null) return keep;
         }
         return null;
     }
