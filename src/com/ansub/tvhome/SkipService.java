@@ -22,11 +22,15 @@ import java.util.regex.Pattern;
 // screens (Netflix, YouTube) show nothing here: skip.sh check tells you which is which.
 public final class SkipService extends AccessibilityService {
     static final String PREFS = "skip";
+    // Only apps that show their buttons to Android. Netflix, Apple TV and YouTube draw their own
+    // screens, so Skip can't help there, and watching them only makes the service walk their view
+    // tree on every frame during playback: on a small TV that stutters the video. So they're left
+    // out on purpose. (The pixel-watcher leaves them out too; their DRM blocks any screenshot.)
     static final String[] APPS = {
-            "com.netflix.ninja", "com.amazon.amazonvideo.livingroom", "in.startv.hotstar", "com.disney.disneyplus",
-            "com.apple.atve.androidtv.appletv", "com.sonyliv", "com.graymatrix.did", "com.crunchyroll.crunchyroid",
+            "com.amazon.amazonvideo.livingroom", "in.startv.hotstar", "com.disney.disneyplus",
+            "com.sonyliv", "com.graymatrix.did", "com.crunchyroll.crunchyroid",
             "com.jio.media.stb.ondemand", "tv.airtel.xstream.tvapp", "com.wbd.stream", "com.hbo.hbonow",
-            "com.hulu.livingroomplus", "com.peacocktv.peacockandroid", "com.cbs.ott", "com.google.android.youtube.tv",
+            "com.hulu.livingroomplus", "com.peacocktv.peacockandroid", "com.cbs.ott",
             "com.mxtech.videoplayer.television", "com.stremio.one"};
     // What to press. "Watch credits" and "Skip to ..." menus are not these.
     private static final Pattern SKIP = Pattern.compile(
